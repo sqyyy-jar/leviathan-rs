@@ -5,7 +5,7 @@ pub mod util;
 pub fn test_panic() {
     let result = parser::Parser::parse(
         &r#"
-(+ -1.0 2.0 -3 4)
+# Test code goes here
 "#
         .to_string(),
     );
