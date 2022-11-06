@@ -6,6 +6,7 @@ It currently is in early development and will just be a fun project of me.
 * Abstract Syntax Tree Parsing
   * Nodes
   * Lists
+  * Maps
   * Identifiers
   * Atoms
   * Strings
@@ -25,6 +26,13 @@ A list looks like this:
 ```clj
 [:1 2 "3"]
 ```
+
+### Map
+A map maps values to keys:
+```clj
+{:name "John", :age 25}
+```
+The commas are optional and duplicate keys are invalid.
 
 ### Identifier
 An identifier is just text that can not be parsed in any other way:
