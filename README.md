@@ -46,6 +46,7 @@ There are the following escape-characters:
 * '\t' => tab
 * '\\"' => double quote
 * '\\\\' => backslash
+
 An example:
 ```clj
 (operator "some text" "\n" "\r" "\t" "\"" "\\")
