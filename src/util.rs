@@ -27,6 +27,19 @@ pub fn read_char(parser: &mut Parser) -> Option<char> {
     next
 }
 
+pub fn read_whitespace(parser: &mut Parser) -> Result<char, Error> {
+    let position = parser.position;
+    let c = read_char(parser);
+    if let None = c {
+        return Err(Error::UnexpectedEndOfSource(parser.position));
+    }
+    let c = c.unwrap();
+    if !is_whitespace(c) {
+        return Err(Error::UnexpectedCharacter(position, c));
+    }
+    return Ok(c);
+}
+
 pub fn peek_char(parser: &mut Parser) -> Option<char> {
     let next = parser.source.peek().copied();
     next

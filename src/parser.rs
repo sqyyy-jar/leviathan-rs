@@ -2,7 +2,7 @@
 
 use crate::util::{
     consume_whitespaces, is_closing_bracket, is_valid_ident_char, is_whitespace, peek_char,
-    read_char, Error,
+    read_char, read_whitespace, Error,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -98,7 +98,7 @@ impl<'a> Parser<'a> {
                 Ok(Some(result))
             }
             '(' => {
-                let result = self.parse_node(position)?;
+                let result = self.parse_node(position, is_root)?;
                 Ok(Some(result))
             }
             '[' => {
@@ -297,28 +297,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_node(&mut self, position: TextPosition) -> Result<Node> {
+    fn parse_node(&mut self, position: TextPosition, is_root: bool) -> Result<Node> {
         read_char(self);
         consume_whitespaces(self);
         let operator = self.parse_identifier(false)?;
-        let c = peek_char(self);
-        if let None = c {
-            read_char(self);
-            return Err(Error::UnexpectedEndOfSource(self.position));
-        }
-        let c = c.unwrap();
-        if c == ')' {
-            read_char(self);
-            consume_whitespaces(self);
-            return Ok(Node {
-                position,
-                value: NodeType::Node {
-                    operator,
-                    arguments: Vec::with_capacity(0),
-                },
-            });
-        }
-        let mut arguments = Vec::new();
+        let mut arguments = Vec::with_capacity(0);
         loop {
             let c = peek_char(self);
             if let None = c {
@@ -328,6 +311,9 @@ impl<'a> Parser<'a> {
             let c = c.unwrap();
             if c == ')' {
                 read_char(self);
+                if !is_root {
+                    read_whitespace(self)?;
+                }
                 consume_whitespaces(self);
                 break;
             }
@@ -349,9 +335,8 @@ impl<'a> Parser<'a> {
     fn parse_list(&mut self, position: TextPosition) -> Result<Node> {
         read_char(self);
         consume_whitespaces(self);
-        let mut values = Vec::new();
+        let mut values = Vec::with_capacity(0);
         loop {
-            // use of new let else
             let Some(c) = peek_char(self) else {
                 read_char(self);
                 return Err(Error::UnexpectedEndOfSource(self.position));
