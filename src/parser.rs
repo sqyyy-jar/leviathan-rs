@@ -99,10 +99,14 @@ impl<'a> Parser<'a> {
                 Ok(Some(result))
             }
             '(' => {
-                let result = self.parse_node(position, is_root)?;
+                let result = self.parse_node(position)?;
                 Ok(Some(result))
             }
-            '-' | '0'..='9' => {
+            '[' => {
+                let result = self.parse_list(position)?;
+                Ok(Some(result))
+            }
+            '.' | '-' | '0'..='9' => {
                 let result = self.parse_number(position)?;
                 Ok(Some(result))
             }
@@ -204,6 +208,7 @@ impl<'a> Parser<'a> {
                 return Err(Error::UnexpectedNewline(self.position));
             }
             if c == '"' {
+                consume_whitespaces(self);
                 break;
             }
             if c == '\\' {
@@ -232,7 +237,11 @@ impl<'a> Parser<'a> {
     fn parse_number(&mut self, position: TextPosition) -> Result<Node> {
         let mut buffer = String::new();
         let mut is_float = false;
-        buffer.push(read_char(self).unwrap());
+        let c = read_char(self).unwrap();
+        if c == '.' {
+            is_float = true;
+        }
+        buffer.push(c);
         loop {
             let c = peek_char(self);
             if let None = c {
@@ -285,7 +294,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_node(&mut self, position: TextPosition, _is_root: bool) -> Result<Node> {
+    fn parse_node(&mut self, position: TextPosition) -> Result<Node> {
         read_char(self);
         consume_whitespaces(self);
         let operator = self.parse_identifier(false)?;
@@ -316,21 +325,51 @@ impl<'a> Parser<'a> {
             let c = c.unwrap();
             if c == ')' {
                 read_char(self);
+                consume_whitespaces(self);
                 break;
             }
-            let element = self.parse_element(false, false)?;
+            let element = self.parse_element(true, false)?;
             match element {
                 Some(element) => arguments.push(element),
                 None => return Err(Error::UnexpectedEndOfSource(self.position)),
             }
         }
-        consume_whitespaces(self);
         Ok(Node {
             position,
             value: NodeType::Node {
                 operator,
                 arguments,
             },
+        })
+    }
+
+    fn parse_list(&mut self, position: TextPosition) -> Result<Node> {
+        read_char(self);
+        consume_whitespaces(self);
+        let mut values = Vec::new();
+        loop {
+            let Some(c) = peek_char(self) else {
+                read_char(self);
+                return Err(Error::UnexpectedEndOfSource(self.position));
+            };
+            if c == ']' {
+                read_char(self);
+                consume_whitespaces(self);
+                break;
+            }
+            if is_closing_bracket(c) {
+                read_char(self);
+                return Err(Error::UnexpectedCharacter(self.position, c));
+            }
+            let element = self.parse_element(true, false)?;
+            match element {
+                Some(element) => values.push(element),
+                None => return Err(Error::UnexpectedEndOfSource(self.position)),
+            }
+        }
+        Ok(Node {
+            position,
+            value: NodeType::List(values),
         })
     }
 }
