@@ -1,0 +1,34 @@
+(ns std/math)
+
+(struct Vec3 [:x f64
+              :y f64
+              :z f64])
+
+(fn add [:lhs Vec3 :rhs Vec3] Vec3 (do
+  (Vec3 [:x (+ (.x lhs) (.x rhs)) :y (+ (.y lhs) (.y rhs)) :z (+ (.z lhs) (.z rhs))])))
+
+(fn sub [:lhs Vec3 :rhs Vec3] Vec3 (do
+  (Vec3 [:x (- (.x lhs) (.x rhs)) :y (- (.y lhs) (.y rhs)) :z (- (.z lhs) (.z rhs))])))
+
+(fn mul [:lhs Vec3 :rhs f64] Vec3 (do
+  (Vec3 [:x (* (.x lhs) (.x rhs)) :y (* (.y lhs) (.y rhs)) :z (* (.z lhs) (.z rhs))])))
+
+(fn div [:lhs Vec3 :rhs f64] Vec3 (do
+  (Vec3 [:x (/ (.x lhs) rhs :y (/ (.y lhs) rhs) :z (/ (.z lhs) rhs)])))
+
+(fn len [:vec Vec3] f64 (do
+  (let x (.x vec))
+  (let y (.y vec))
+  (let z (.z vec))
+  (sqrt (+ (* x x) (* y y) (* z z)))))
+
+(fn normalize [:vec Vec3] Vec3 (do
+  (let length (len vec))
+  (Vec3 [:x (/ (.x vec) length)
+         :y (/ (.y vec) length)
+         :z (/ (.z vec) length)])))
+
+(fn sqrt [:num f64] [:native] f64)
+
+(fn pow [:base f64 :exponent f64] [:native] f64)
+

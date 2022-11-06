@@ -1,0 +1,336 @@
+#![allow(unused)]
+
+use crate::util::{
+    consume_whitespaces, is_closing_bracket, is_valid_ident_char, is_whitespace, peek_char,
+    read_char, Error,
+};
+use std::{
+    collections::{HashMap, HashSet},
+    iter::Peekable,
+    str::Chars,
+};
+
+type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Clone, Copy, Debug)]
+pub struct TextPosition {
+    pub line: u32,
+    pub column: u32,
+}
+
+#[derive(Clone, Debug)]
+pub struct Node {
+    position: TextPosition,
+    value: NodeType,
+}
+
+#[derive(Clone, Debug)]
+pub enum NodeType {
+    Node {
+        operator: String,
+        arguments: Vec<Node>,
+    },
+    List(Vec<Node>),
+    Set(HashSet<Node>),
+    Map(HashMap<String, Node>),
+    Identifier(String),
+    Atom(String),
+    String(String),
+    Integer(i64),
+    Float(f64),
+    Bool(bool),
+    Comment(String),
+}
+
+pub struct Parser<'a> {
+    pub source: Peekable<Chars<'a>>,
+    pub position: TextPosition,
+    pub nodes: Vec<Node>,
+}
+
+#[derive(Debug)]
+pub struct ParseResult {
+    nodes: Vec<Node>,
+}
+
+impl<'a> Parser<'a> {
+    pub fn parse(source: &'a String) -> Result<ParseResult> {
+        let mut parser = Self {
+            source: source.chars().peekable(),
+            position: TextPosition { line: 1, column: 1 },
+            nodes: Vec::new(),
+        };
+        consume_whitespaces(&mut parser);
+        loop {
+            let element = parser.parse_element(false, true)?;
+            match element {
+                Some(element) => parser.nodes.push(element),
+                None => break,
+            }
+        }
+        let result = Ok(ParseResult {
+            nodes: parser.nodes.clone(),
+        });
+        return result;
+    }
+
+    fn parse_element(&mut self, expect_element: bool, is_root: bool) -> Result<Option<Node>> {
+        let position = self.position;
+        let c = peek_char(self);
+        if let None = c {
+            if expect_element {
+                return Err(Error::UnexpectedEndOfSource(position));
+            } else {
+                return Ok(None);
+            }
+        }
+        let c = c.unwrap();
+        match c {
+            '#' => {
+                let result = self.parse_comment(position)?;
+                Ok(Some(result))
+            }
+            ':' => {
+                let result = self.parse_atom(position)?;
+                Ok(Some(result))
+            }
+            '"' => {
+                let result = self.parse_string(position)?;
+                Ok(Some(result))
+            }
+            '(' => {
+                let result = self.parse_node(position, is_root)?;
+                Ok(Some(result))
+            }
+            '-' | '0'..='9' => {
+                let result = self.parse_number(position)?;
+                Ok(Some(result))
+            }
+            c => {
+                if c.is_ascii_whitespace() {
+                    read_char(self);
+                    return Err(Error::UnexpectedWhitespace(self.position));
+                }
+                if is_root {
+                    read_char(self);
+                    return Err(Error::UnexpectedCharacter(self.position, c));
+                }
+                if !is_valid_ident_char(c) {
+                    read_char(self);
+                    return Err(Error::InvalidCharacter(self.position, c));
+                }
+                let position = self.position;
+                let identifier = self.parse_identifier(false)?;
+                Ok(Some(Node {
+                    position,
+                    value: NodeType::Identifier(identifier),
+                }))
+            }
+        }
+    }
+
+    fn parse_identifier(&mut self, allow_empty: bool) -> Result<String> {
+        let position = self.position;
+        let mut buffer = String::new();
+        loop {
+            let c = peek_char(self);
+            if let None = c {
+                read_char(self);
+                return Err(Error::UnexpectedEndOfSource(self.position));
+            }
+            let c = c.unwrap();
+            if is_whitespace(c) {
+                consume_whitespaces(self);
+                break;
+            }
+            if is_closing_bracket(c) {
+                break;
+            }
+            if !is_valid_ident_char(c) {
+                read_char(self);
+                return Err(Error::InvalidCharacter(self.position, c));
+            }
+            read_char(self);
+            buffer.push(c);
+        }
+        if !allow_empty && buffer.is_empty() {
+            return Err(Error::EmptyIdentifier(position));
+        }
+        return Ok(buffer);
+    }
+
+    fn parse_comment(&mut self, position: TextPosition) -> Result<Node> {
+        read_char(self);
+        let mut text = String::new();
+        loop {
+            let c = read_char(self);
+            if let None = c {
+                return Err(Error::UnexpectedEndOfSource(self.position));
+            }
+            let c = c.unwrap();
+            if c == '\n' {
+                break;
+            }
+            if c == '\r' {
+                continue;
+            }
+            text.push(c);
+        }
+        Ok(Node {
+            position,
+            value: NodeType::Comment(text.trim().to_string()),
+        })
+    }
+
+    fn parse_atom(&mut self, position: TextPosition) -> Result<Node> {
+        read_char(self);
+        let string = self.parse_identifier(true)?;
+        return Ok(Node {
+            position,
+            value: NodeType::Atom(string),
+        });
+    }
+
+    fn parse_string(&mut self, position: TextPosition) -> Result<Node> {
+        read_char(self);
+        let mut string = String::new();
+        loop {
+            let c = read_char(self);
+            if let None = c {
+                return Err(Error::UnexpectedEndOfSource(self.position));
+            }
+            let c = c.unwrap();
+            if c == '\n' {
+                return Err(Error::UnexpectedNewline(self.position));
+            }
+            if c == '"' {
+                break;
+            }
+            if c == '\\' {
+                let ec = read_char(self);
+                if let None = ec {
+                    return Err(Error::UnexpectedEndOfSource(self.position));
+                }
+                let ec = ec.unwrap();
+                match ec {
+                    'n' => string.push('\n'),
+                    't' => string.push('\t'),
+                    'r' => string.push('\r'),
+                    '"' => string.push('"'),
+                    '\\' => string.push('\\'),
+                    _ => return Err(Error::InvalidEscapeCharacter(self.position, ec)),
+                }
+            }
+            string.push(c);
+        }
+        Ok(Node {
+            position,
+            value: NodeType::String(string),
+        })
+    }
+
+    fn parse_number(&mut self, position: TextPosition) -> Result<Node> {
+        let mut buffer = String::new();
+        let mut is_float = false;
+        buffer.push(read_char(self).unwrap());
+        loop {
+            let c = peek_char(self);
+            if let None = c {
+                return Err(Error::UnexpectedEndOfSource(self.position));
+            }
+            let c = c.unwrap();
+            if c == '.' {
+                read_char(self);
+                if is_float {
+                    return Err(Error::InvalidFloatingPointNumber(self.position));
+                }
+                is_float = true;
+                continue;
+            }
+            if !c.is_ascii_digit() {
+                if !c.is_ascii_whitespace() {
+                    if is_closing_bracket(c) {
+                        break;
+                    }
+                    read_char(self);
+                    return Err(Error::UnexpectedCharacter(self.position, c));
+                }
+                consume_whitespaces(self);
+                break;
+            }
+            read_char(self);
+            buffer.push(c);
+        }
+        if is_float {
+            let result = buffer.parse::<f64>();
+            if result.is_err() {
+                return Err(Error::UnparsableFloatingPointNumber(
+                    position,
+                    result.unwrap_err(),
+                ));
+            }
+            Ok(Node {
+                position,
+                value: NodeType::Float(result.unwrap()),
+            })
+        } else {
+            let result = buffer.parse::<i64>();
+            if result.is_err() {
+                return Err(Error::UnparsableInteger(position, result.unwrap_err()));
+            }
+            Ok(Node {
+                position,
+                value: NodeType::Integer(result.unwrap()),
+            })
+        }
+    }
+
+    fn parse_node(&mut self, position: TextPosition, _is_root: bool) -> Result<Node> {
+        read_char(self);
+        consume_whitespaces(self);
+        let operator = self.parse_identifier(false)?;
+        let c = peek_char(self);
+        if let None = c {
+            read_char(self);
+            return Err(Error::UnexpectedEndOfSource(self.position));
+        }
+        let c = c.unwrap();
+        if c == ')' {
+            read_char(self);
+            consume_whitespaces(self);
+            return Ok(Node {
+                position,
+                value: NodeType::Node {
+                    operator,
+                    arguments: Vec::with_capacity(0),
+                },
+            });
+        }
+        let mut arguments = Vec::new();
+        loop {
+            let c = peek_char(self);
+            if let None = c {
+                read_char(self);
+                return Err(Error::UnexpectedEndOfSource(self.position));
+            }
+            let c = c.unwrap();
+            if c == ')' {
+                read_char(self);
+                break;
+            }
+            let element = self.parse_element(false, false)?;
+            match element {
+                Some(element) => arguments.push(element),
+                None => return Err(Error::UnexpectedEndOfSource(self.position)),
+            }
+        }
+        consume_whitespaces(self);
+        Ok(Node {
+            position,
+            value: NodeType::Node {
+                operator,
+                arguments,
+            },
+        })
+    }
+}
