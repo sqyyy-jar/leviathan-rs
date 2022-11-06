@@ -44,8 +44,8 @@ There are the following escape-characters:
 * '\n' => newline
 * '\r' => carriage return
 * '\t' => tab
-* '\"' => double quote
-* '\\' => backslash
+* '\\"' => double quote
+* '\\\\' => backslash
 An example:
 ```clj
 (operator "some text" "\n" "\r" "\t" "\"" "\\")
