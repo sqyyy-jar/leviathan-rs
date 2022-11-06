@@ -1,4 +1,4 @@
-use crate::parser::{Parser, TextPosition};
+use crate::parser::{NodeType, Parser, TextPosition};
 use std::str::FromStr;
 
 #[derive(Debug)]
@@ -7,12 +7,14 @@ pub enum Error {
     UnexpectedWhitespace(TextPosition),
     UnexpectedCharacter(TextPosition, char),
     UnexpectedNewline(TextPosition),
+    UnexpectedElement(TextPosition, NodeType),
     InvalidCharacter(TextPosition, char),
     InvalidEscapeCharacter(TextPosition, char),
     InvalidFloatingPointNumber(TextPosition),
     UnparsableFloatingPointNumber(TextPosition, <f64 as FromStr>::Err),
     UnparsableInteger(TextPosition, <i64 as FromStr>::Err),
     EmptyIdentifier(TextPosition),
+    DoubleMapInsertion(TextPosition),
 }
 
 pub fn read_char(parser: &mut Parser) -> Option<char> {

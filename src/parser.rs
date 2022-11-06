@@ -31,7 +31,6 @@ pub enum NodeType {
         arguments: Vec<Node>,
     },
     List(Vec<Node>),
-    Set(HashSet<Node>),
     Map(HashMap<String, Node>),
     Identifier(String),
     Atom(String),
@@ -104,6 +103,10 @@ impl<'a> Parser<'a> {
             }
             '[' => {
                 let result = self.parse_list(position)?;
+                Ok(Some(result))
+            }
+            '{' => {
+                let result = self.parse_map(position)?;
                 Ok(Some(result))
             }
             '.' | '-' | '0'..='9' => {
@@ -257,7 +260,7 @@ impl<'a> Parser<'a> {
                 continue;
             }
             if !c.is_ascii_digit() {
-                if !c.is_ascii_whitespace() {
+                if !is_whitespace(c) {
                     if is_closing_bracket(c) {
                         break;
                     }
@@ -348,6 +351,7 @@ impl<'a> Parser<'a> {
         consume_whitespaces(self);
         let mut values = Vec::new();
         loop {
+            // use of new let else
             let Some(c) = peek_char(self) else {
                 read_char(self);
                 return Err(Error::UnexpectedEndOfSource(self.position));
@@ -370,6 +374,49 @@ impl<'a> Parser<'a> {
         Ok(Node {
             position,
             value: NodeType::List(values),
+        })
+    }
+
+    fn parse_map(&mut self, position: TextPosition) -> Result<Node> {
+        read_char(self);
+        consume_whitespaces(self);
+        let mut map = HashMap::new();
+        loop {
+            let Some(c) = peek_char(self) else {
+                read_char(self);
+                return Err(Error::UnexpectedEndOfSource(self.position));
+            };
+            if c == '}' {
+                read_char(self);
+                consume_whitespaces(self);
+                break;
+            }
+            if is_closing_bracket(c) {
+                read_char(self);
+                return Err(Error::UnexpectedCharacter(self.position, c));
+            }
+            let key_position = self.position;
+            let key = self.parse_element(true, false)?;
+            let Some(key) = key else {
+                return Err(Error::UnexpectedEndOfSource(self.position));
+            };
+            let Node { position: _, value: NodeType::Atom(key_string) } = key else {
+                return Err(Error::UnexpectedElement(key.position, key.value));
+            };
+            let value = self.parse_element(true, false)?;
+            match value {
+                Some(value) => {
+                    let replace = map.insert(key_string, value);
+                    if let Some(_) = replace {
+                        return Err(Error::DoubleMapInsertion(key_position));
+                    }
+                }
+                None => return Err(Error::UnexpectedEndOfSource(self.position)),
+            }
+        }
+        Ok(Node {
+            position,
+            value: NodeType::Map(map),
         })
     }
 }
