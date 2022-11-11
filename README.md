@@ -19,7 +19,7 @@ A node looks like this:
 ```clj
 (operator arguments)
 ```
-The operator must be a valid identifier and each argument can be any element named above, seperated by *whitespace.
+The operator must be a valid identifier and each argument can be any element named above, seperated by whitespace[^1].
 
 ### List
 A list looks like this:
@@ -91,5 +91,4 @@ A comment is a hashtag '#' followed by the comment till the end of the line:
 # this is a comment
 ```
 
-## Footnotes
-* *whitespace: whitespaces include the comma character ','
+[^1]: Whitespace include the comma character ','.
