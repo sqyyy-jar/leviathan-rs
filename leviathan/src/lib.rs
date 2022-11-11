@@ -1,4 +1,6 @@
+mod error;
 pub mod parser;
+mod prelude;
 pub mod util;
 
 #[test]

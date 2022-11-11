@@ -1,0 +1,3 @@
+(ns test)
+(fn main []
+  (do (println "Hello world!" )))

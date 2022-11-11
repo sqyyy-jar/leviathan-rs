@@ -1,22 +1,9 @@
-#![allow(unused)]
-
+use crate::prelude::*;
 use crate::util::{
     consume_whitespaces, is_closing_bracket, is_valid_ident_char, is_whitespace, peek_char,
-    read_char, read_whitespace, Error,
+    read_char, read_whitespace, TextPosition,
 };
-use std::{
-    collections::{HashMap, HashSet},
-    iter::Peekable,
-    str::Chars,
-};
-
-type Result<T> = std::result::Result<T, Error>;
-
-#[derive(Clone, Copy, Debug)]
-pub struct TextPosition {
-    pub line: u32,
-    pub column: u32,
-}
+use std::{collections::HashMap, iter::Peekable, str::Chars};
 
 #[derive(Clone, Debug)]
 pub struct Node {
@@ -276,7 +263,7 @@ impl<'a> Parser<'a> {
         if is_float {
             let result = buffer.parse::<f64>();
             if result.is_err() {
-                return Err(Error::UnparsableFloatingPointNumber(
+                return Err(Error::FloatingPointParseError(
                     position,
                     result.unwrap_err(),
                 ));
@@ -288,7 +275,7 @@ impl<'a> Parser<'a> {
         } else {
             let result = buffer.parse::<i64>();
             if result.is_err() {
-                return Err(Error::UnparsableInteger(position, result.unwrap_err()));
+                return Err(Error::IntegerParseError(position, result.unwrap_err()));
             }
             Ok(Node {
                 position,
@@ -311,9 +298,6 @@ impl<'a> Parser<'a> {
             let c = c.unwrap();
             if c == ')' {
                 read_char(self);
-                if !is_root {
-                    read_whitespace(self)?;
-                }
                 consume_whitespaces(self);
                 break;
             }
@@ -393,7 +377,7 @@ impl<'a> Parser<'a> {
                 Some(value) => {
                     let replace = map.insert(key_string, value);
                     if let Some(_) = replace {
-                        return Err(Error::DoubleMapInsertion(key_position));
+                        return Err(Error::DuplicateKeyInMap(key_position));
                     }
                 }
                 None => return Err(Error::UnexpectedEndOfSource(self.position)),

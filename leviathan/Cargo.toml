@@ -1,0 +1,11 @@
+[package]
+name = "leviathan"
+version = "0.1.0"
+edition = "2021"
+lib = true
+
+[dependencies]
+thiserror = "1"
+
+[dev-dependencies]
+anyhow = "1"

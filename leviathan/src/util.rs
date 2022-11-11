@@ -1,6 +1,8 @@
-use crate::parser::{NodeType, Parser, TextPosition};
-use std::str::FromStr;
+use crate::parser::Parser;
+use crate::prelude::*;
+use std::fmt::Display;
 
+/*
 #[derive(Debug)]
 pub enum Error {
     UnexpectedEndOfSource(TextPosition),
@@ -16,6 +18,19 @@ pub enum Error {
     EmptyIdentifier(TextPosition),
     DoubleMapInsertion(TextPosition),
 }
+*/
+
+#[derive(Clone, Copy, Debug)]
+pub struct TextPosition {
+    pub line: u32,
+    pub column: u32,
+}
+
+impl Display for TextPosition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(format!("{}:{}", self.line, self.column).as_str())
+    }
+}
 
 pub fn read_char(parser: &mut Parser) -> Option<char> {
     parser.position.column += 1;
@@ -27,7 +42,7 @@ pub fn read_char(parser: &mut Parser) -> Option<char> {
     next
 }
 
-pub fn read_whitespace(parser: &mut Parser) -> Result<char, Error> {
+pub fn read_whitespace(parser: &mut Parser) -> Result<char> {
     let position = parser.position;
     let c = read_char(parser);
     if let None = c {
