@@ -4,5 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-leviathan = { path = "../leviathan/", version = "0.1.0" }
+leviathan-parser = { path = "../leviathan-parser" }
+#leviathan = { path = "../leviathan" }
+leviathan-common = { path = "../leviathan-common" }
 clap = { version = "4.0.22", features = ["derive"] }

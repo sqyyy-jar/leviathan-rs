@@ -1,6 +1,5 @@
+use crate::util::{NodeType, TextPosition};
 use std::str::FromStr;
-
-use crate::{parser::NodeType, util::TextPosition};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {

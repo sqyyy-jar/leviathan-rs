@@ -1,36 +1,5 @@
-use crate::parser::Parser;
-use crate::prelude::*;
-use std::fmt::Display;
-
-/*
-#[derive(Debug)]
-pub enum Error {
-    UnexpectedEndOfSource(TextPosition),
-    UnexpectedWhitespace(TextPosition),
-    UnexpectedCharacter(TextPosition, char),
-    UnexpectedNewline(TextPosition),
-    UnexpectedElement(TextPosition, NodeType),
-    InvalidCharacter(TextPosition, char),
-    InvalidEscapeCharacter(TextPosition, char),
-    InvalidFloatingPointNumber(TextPosition),
-    UnparsableFloatingPointNumber(TextPosition, <f64 as FromStr>::Err),
-    UnparsableInteger(TextPosition, <i64 as FromStr>::Err),
-    EmptyIdentifier(TextPosition),
-    DoubleMapInsertion(TextPosition),
-}
-*/
-
-#[derive(Clone, Copy, Debug)]
-pub struct TextPosition {
-    pub line: u32,
-    pub column: u32,
-}
-
-impl Display for TextPosition {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("{}:{}", self.line, self.column).as_str())
-    }
-}
+use crate::source_parser::Parser;
+use leviathan_common::prelude::*;
 
 pub fn read_char(parser: &mut Parser) -> Option<char> {
     parser.position.column += 1;
