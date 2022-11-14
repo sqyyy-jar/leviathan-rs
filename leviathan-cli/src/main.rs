@@ -26,10 +26,7 @@ fn main() {
                 return;
             }
             let source = source.unwrap();
-            println!(
-                "{:#?}",
-                leviathan_parser::source_parser::Parser::parse(&source)
-            );
+            println!("{:#?}", leviathan_parser::source_parser::parse(&source));
         }
         _ => {
             unreachable!();

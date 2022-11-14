@@ -10,9 +10,9 @@ pub struct SourceReader<'a, T: Sized> {
     is_whitespace: fn(char) -> bool,
 }
 
-impl<'a, T: Sized> SourceReader<'a, T> {
-    pub fn new(source: &'a String) -> Self {
-        Self {
+impl<'a, T> SourceReader<'a, T> {
+    pub fn new(source: &'a String) -> SourceReader<T> {
+        SourceReader {
             source: source.chars().peekable(),
             position: TextPosition { line: 1, column: 1 },
             elements: Vec::new(),
@@ -21,8 +21,11 @@ impl<'a, T: Sized> SourceReader<'a, T> {
         }
     }
 
-    pub fn with_is_whitespace(source: &'a String, is_whitespace: fn(char) -> bool) -> Self {
-        Self {
+    pub fn with_is_whitespace(
+        source: &'a String,
+        is_whitespace: fn(char) -> bool,
+    ) -> SourceReader<T> {
+        SourceReader {
             source: source.chars().peekable(),
             position: TextPosition { line: 1, column: 1 },
             elements: Vec::new(),
@@ -38,6 +41,20 @@ impl<'a, T: Sized> SourceReader<'a, T> {
         return (self.is_whitespace)(self.last.unwrap());
     }
 
+    #[inline(always)]
+    pub fn last(&self) -> Option<char> {
+        self.last
+    }
+
+    #[inline(always)]
+    pub fn pos(&self) -> TextPosition {
+        self.position
+    }
+
+    pub fn has_finished(&mut self) -> bool {
+        self.peek().is_none()
+    }
+
     pub fn peek(&mut self) -> Option<char> {
         self.source.peek().copied()
     }
@@ -51,6 +68,24 @@ impl<'a, T: Sized> SourceReader<'a, T> {
         }
         self.last = next;
         next
+    }
+
+    pub fn read_whitespace(&mut self) {
+        loop {
+            let c = self.peek();
+            if let Some(c) = c {
+                if !(self.is_whitespace)(c) {
+                    return;
+                }
+                self.read();
+                continue;
+            }
+            return;
+        }
+    }
+
+    pub fn push_element(&mut self, element: T) {
+        self.elements.push(element);
     }
 
     pub fn destruct(self) -> (TextPosition, Vec<T>) {

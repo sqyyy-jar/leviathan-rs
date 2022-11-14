@@ -4,3 +4,4 @@
 * [ ] Implement bool
 * [ ] Add checking logic
 * [x] Migrate to thiserror
+* [x] Migrate to SourceReader
