@@ -7,9 +7,7 @@ use leviathan_common::{
 use std::collections::HashMap;
 
 #[derive(Debug)]
-pub struct ParseResult {
-    nodes: Vec<Node>,
-}
+pub struct ParseResult(Vec<Node>);
 
 pub fn parse(source: &String) -> Result<ParseResult> {
     let mut reader = SourceReader::<Node>::with_is_whitespace(source, is_whitespace);
@@ -21,9 +19,7 @@ pub fn parse(source: &String) -> Result<ParseResult> {
             None => break,
         }
     }
-    Ok(ParseResult {
-        nodes: reader.destruct().1,
-    })
+    Ok(ParseResult(reader.destruct().1))
 }
 
 fn parse_element(
@@ -257,7 +253,7 @@ fn parse_number(reader: &mut SourceReader<Node>, position: TextPosition) -> Resu
 fn parse_node(
     reader: &mut SourceReader<Node>,
     position: TextPosition,
-    is_root: bool,
+    _is_root: bool,
 ) -> Result<Node> {
     reader.read();
     reader.read_whitespace();
