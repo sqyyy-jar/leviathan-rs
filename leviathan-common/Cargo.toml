@@ -5,3 +5,7 @@ edition = "2021"
 
 [dependencies]
 thiserror = "1"
+
+[features]
+parser_source = []
+parser_structure = []

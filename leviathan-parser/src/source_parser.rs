@@ -1,10 +1,8 @@
 use crate::util::{is_closing_bracket, is_valid_ident_char, is_whitespace};
-use leviathan_common::{
-    prelude::*,
-    reader::SourceReader,
-    util::{Node, NodeType, TextPosition},
-};
+use leviathan_common::parser::source::{Node, NodeType};
+use leviathan_common::{parser::reader::SourceReader, prelude::*, util::TextPosition};
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 #[derive(Debug)]
 pub struct ParseResult(Vec<Node>);

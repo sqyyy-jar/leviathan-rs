@@ -1,6 +1,5 @@
-use std::{iter::Peekable, str::Chars};
-
 use crate::util::TextPosition;
+use std::{iter::Peekable, str::Chars};
 
 pub struct SourceReader<'a, T: Sized> {
     source: Peekable<Chars<'a>>,
