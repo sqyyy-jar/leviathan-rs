@@ -14,7 +14,7 @@ impl<'a, T> SourceReader<'a, T> {
     pub fn new(source: &'a String) -> SourceReader<T> {
         SourceReader {
             source: source.chars().peekable(),
-            position: TextPosition { line: 1, column: 1 },
+            position: TextPosition { line: 1, column: 0 },
             elements: Vec::new(),
             last: None,
             is_whitespace: char::is_whitespace,
@@ -27,7 +27,7 @@ impl<'a, T> SourceReader<'a, T> {
     ) -> SourceReader<T> {
         SourceReader {
             source: source.chars().peekable(),
-            position: TextPosition { line: 1, column: 1 },
+            position: TextPosition { line: 1, column: 0 },
             elements: Vec::new(),
             last: None,
             is_whitespace,

@@ -1,7 +1,7 @@
 use crate::util::{NodeType, TextPosition};
-use std::str::FromStr;
+use std::{str::FromStr, fmt::{Debug, Formatter, Display}};
 
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error)]
 pub enum Error {
     #[error("Generic {0}")]
     Generic(String),
@@ -33,4 +33,10 @@ pub enum Error {
     EmptyIdentifier(TextPosition),
     #[error("Duplicate key in map at {0}")]
     DuplicateKeyInMap(TextPosition),
+}
+
+impl Debug for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
+    }
 }
