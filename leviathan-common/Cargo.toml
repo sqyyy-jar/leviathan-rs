@@ -9,3 +9,4 @@ thiserror = "1"
 [features]
 parser_source = []
 parser_structure = []
+compiler = []

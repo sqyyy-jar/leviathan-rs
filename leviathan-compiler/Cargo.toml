@@ -1,0 +1,8 @@
+[package]
+name = "leviathan-compiler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+leviathan-common = { path = "../leviathan-common", features = ["compiler"] }
+leviathan-parser = { path = "../leviathan-parser" }

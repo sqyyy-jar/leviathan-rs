@@ -3,5 +3,6 @@ members = [
   "leviathan-cli",
   "leviathan-parser",
   "leviathan-runtime",
-  "leviathan-common"
+  "leviathan-common",
+  "leviathan-compiler"
 ]
