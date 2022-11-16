@@ -10,3 +10,10 @@
 * [ ] Improve TextPosition logging
 * [ ] Move strings instead of cloning
 * [ ] Increase use of move as an alternative to cloning
+* [ ] Add importing
+  * [ ] Add basic importing
+  * [ ] Add prelude imports
+* [ ] Add bytecode
+* [ ] Add documentation
+* [ ] Add standard library
+* [ ] Add runtime library
