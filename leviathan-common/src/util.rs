@@ -6,6 +6,12 @@ pub struct TextPosition {
     pub column: u32,
 }
 
+impl TextPosition {
+    pub fn new(line: u32, column: u32) -> Self {
+        Self { line, column }
+    }
+}
+
 impl Display for TextPosition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("{}:{}", self.line, self.column).as_str())

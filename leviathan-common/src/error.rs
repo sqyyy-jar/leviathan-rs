@@ -9,45 +9,74 @@ pub enum Error {
     Generic(String),
     #[error(transparent)]
     IO(#[from] std::io::Error),
+    // --------------------------------------------------------------
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Unexpected end of source at {0}")]
-    UnexpectedEndOfSource(TextPosition),
+    SourceUnexpectedEndOfSource(TextPosition),
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Unexpected whitespace at {0}")]
-    UnexpectedWhitespace(TextPosition),
+    SourceUnexpectedWhitespace(TextPosition),
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Unexpected character '{1}' at {0}")]
-    UnexpectedCharacter(TextPosition, char),
+    SourceUnexpectedCharacter(TextPosition, char),
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Unexpected character '{1}' at {0}, expected {2}")]
-    UnexpectedCharacterExpected(TextPosition, char, String),
+    SourceUnexpectedCharacterExpected(TextPosition, char, String),
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Unexpected newline at {0}")]
-    UnexpectedNewline(TextPosition),
+    SourceUnexpectedNewline(TextPosition),
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Unexpected element at {0}: {1:?}")]
-    UnexpectedElement(TextPosition, NodeType),
+    SourceUnexpectedElement(TextPosition, NodeType),
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Not allowed character '{1}' at {0}")]
-    InvalidCharacter(TextPosition, char),
+    SourceInvalidCharacter(TextPosition, char),
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Found invalid escape character '{1}' in string at {0}")]
-    InvalidEscapeCharacter(TextPosition, char),
+    SourceInvalidEscapeCharacter(TextPosition, char),
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Invalid floating point number at {0}")]
-    InvalidFloatingPointNumber(TextPosition),
+    SourceInvalidFloatingPointNumber(TextPosition),
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Could not parse floating point number at {0}: {1}")]
-    FloatingPointParseError(TextPosition, <f64 as FromStr>::Err),
+    SourceFloatingPointParseError(TextPosition, <f64 as FromStr>::Err),
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Could not parse integer at {0}: {1}")]
-    IntegerParseError(TextPosition, <i64 as FromStr>::Err),
+    SourceIntegerParseError(TextPosition, <i64 as FromStr>::Err),
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("The identifier at {0} cannot be empty")]
-    EmptyIdentifier(TextPosition),
+    SourceEmptyIdentifier(TextPosition),
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Duplicate key in map at {0}")]
-    DuplicateKeyInMap(TextPosition),
+    SourceDuplicateKeyInMap(TextPosition),
+    // --------------------------------------------------------------
+    #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
+    #[error("Expected namespace (ns <IDENT>) at {0}")]
+    StructureExpectedNamespace(TextPosition),
+    #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
+    #[error("Expected namespace (ns <IDENT>) at {0} but got {1}")]
+    StructureExpectedNamespaceGot(TextPosition, String),
+    #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
+    #[error("Invalid namespace (ns <IDENT>) at {0}")]
+    StructureInvalidNamespace(TextPosition),
+    #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
+    #[error("Invalid namespace arguments (ns <IDENT> <ARGS>) at {0}")]
+    StructureInvalidNamespaceArguments(TextPosition),
+    #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
+    #[error("Invalid namespace argument (ns <IDENT> <ARGS>) at {0}")]
+    StructureInvalidNamespaceArgument(TextPosition),
+    #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
+    #[error("Unexpected element at {0}")]
+    StructureUnexpectedElement(TextPosition),
+    #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
+    #[error("Unknown root operator '{1}' at {0}")]
+    StructureUnknownRootOperator(TextPosition, String),
+    #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
+    #[error("Wrong function structure at {0}; expected (fn <NAME> <ARGS> <TAGS?> <BODY>)")]
+    StructureWrongFunctionStructure(TextPosition),
+    #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
+    #[error("Invalid function parameters at {0}; expected [:<NAME> <TYPE> ...]")]
+    StructureInvalidFunctionParameters(TextPosition),
 }
 
 impl Debug for Error {

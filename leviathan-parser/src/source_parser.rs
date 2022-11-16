@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 #[derive(Debug)]
-pub struct ParseResult(Vec<Node>);
+pub struct ParseResult(pub Vec<Node>);
 
 pub fn parse(source: &String) -> Result<ParseResult> {
     let mut reader = SourceReader::<Node>::with_is_whitespace(source, is_whitespace);
@@ -29,7 +29,7 @@ fn parse_element(
     let c = reader.peek();
     if let None = c {
         if expect_element {
-            return Err(Error::UnexpectedEndOfSource(position));
+            return Err(Error::SourceUnexpectedEndOfSource(position));
         } else {
             return Ok(None);
         }
@@ -67,15 +67,15 @@ fn parse_element(
         c => {
             if c.is_ascii_whitespace() {
                 reader.read();
-                return Err(Error::UnexpectedWhitespace(reader.pos()));
+                return Err(Error::SourceUnexpectedWhitespace(reader.pos()));
             }
             if is_root {
                 reader.read();
-                return Err(Error::UnexpectedCharacter(reader.pos(), c));
+                return Err(Error::SourceUnexpectedCharacter(reader.pos(), c));
             }
             if !is_valid_ident_char(c) {
                 reader.read();
-                return Err(Error::InvalidCharacter(reader.pos(), c));
+                return Err(Error::SourceInvalidCharacter(reader.pos(), c));
             }
             let position = reader.pos();
             let identifier = parse_identifier(reader, false)?;
@@ -94,7 +94,7 @@ fn parse_identifier(reader: &mut SourceReader<Node>, allow_empty: bool) -> Resul
         let c = reader.peek();
         if let None = c {
             reader.read();
-            return Err(Error::UnexpectedEndOfSource(reader.pos()));
+            return Err(Error::SourceUnexpectedEndOfSource(reader.pos()));
         }
         let c = c.unwrap();
         if is_whitespace(c) {
@@ -106,13 +106,13 @@ fn parse_identifier(reader: &mut SourceReader<Node>, allow_empty: bool) -> Resul
         }
         if !is_valid_ident_char(c) {
             reader.read();
-            return Err(Error::InvalidCharacter(reader.pos(), c));
+            return Err(Error::SourceInvalidCharacter(reader.pos(), c));
         }
         reader.read();
         buffer.push(c);
     }
     if !allow_empty && buffer.is_empty() {
-        return Err(Error::EmptyIdentifier(position));
+        return Err(Error::SourceEmptyIdentifier(position));
     }
     return Ok(buffer);
 }
@@ -123,7 +123,7 @@ fn parse_comment(reader: &mut SourceReader<Node>, position: TextPosition) -> Res
     loop {
         let c = reader.read();
         if let None = c {
-            return Err(Error::UnexpectedEndOfSource(reader.pos()));
+            return Err(Error::SourceUnexpectedEndOfSource(reader.pos()));
         }
         let c = c.unwrap();
         if c == '\n' {
@@ -155,11 +155,11 @@ fn parse_string(reader: &mut SourceReader<Node>, position: TextPosition) -> Resu
     loop {
         let c = reader.read();
         if let None = c {
-            return Err(Error::UnexpectedEndOfSource(reader.pos()));
+            return Err(Error::SourceUnexpectedEndOfSource(reader.pos()));
         }
         let c = c.unwrap();
         if c == '\n' {
-            return Err(Error::UnexpectedNewline(reader.pos()));
+            return Err(Error::SourceUnexpectedNewline(reader.pos()));
         }
         if c == '"' {
             reader.read_whitespace();
@@ -168,7 +168,7 @@ fn parse_string(reader: &mut SourceReader<Node>, position: TextPosition) -> Resu
         if c == '\\' {
             let ec = reader.read();
             if let None = ec {
-                return Err(Error::UnexpectedEndOfSource(reader.pos()));
+                return Err(Error::SourceUnexpectedEndOfSource(reader.pos()));
             }
             let ec = ec.unwrap();
             match ec {
@@ -177,7 +177,7 @@ fn parse_string(reader: &mut SourceReader<Node>, position: TextPosition) -> Resu
                 'r' => string.push('\r'),
                 '"' => string.push('"'),
                 '\\' => string.push('\\'),
-                _ => return Err(Error::InvalidEscapeCharacter(reader.pos(), ec)),
+                _ => return Err(Error::SourceInvalidEscapeCharacter(reader.pos(), ec)),
             }
         }
         string.push(c);
@@ -199,13 +199,13 @@ fn parse_number(reader: &mut SourceReader<Node>, position: TextPosition) -> Resu
     loop {
         let c = reader.peek();
         if let None = c {
-            return Err(Error::UnexpectedEndOfSource(reader.pos()));
+            return Err(Error::SourceUnexpectedEndOfSource(reader.pos()));
         }
         let c = c.unwrap();
         if c == '.' {
             reader.read();
             if is_float {
-                return Err(Error::InvalidFloatingPointNumber(reader.pos()));
+                return Err(Error::SourceInvalidFloatingPointNumber(reader.pos()));
             }
             is_float = true;
             continue;
@@ -216,7 +216,7 @@ fn parse_number(reader: &mut SourceReader<Node>, position: TextPosition) -> Resu
                     break;
                 }
                 reader.read();
-                return Err(Error::UnexpectedCharacter(reader.pos(), c));
+                return Err(Error::SourceUnexpectedCharacter(reader.pos(), c));
             }
             reader.read_whitespace();
             break;
@@ -227,7 +227,7 @@ fn parse_number(reader: &mut SourceReader<Node>, position: TextPosition) -> Resu
     if is_float {
         let result = buffer.parse::<f64>();
         if result.is_err() {
-            return Err(Error::FloatingPointParseError(
+            return Err(Error::SourceFloatingPointParseError(
                 position,
                 result.unwrap_err(),
             ));
@@ -239,7 +239,7 @@ fn parse_number(reader: &mut SourceReader<Node>, position: TextPosition) -> Resu
     } else {
         let result = buffer.parse::<i64>();
         if result.is_err() {
-            return Err(Error::IntegerParseError(position, result.unwrap_err()));
+            return Err(Error::SourceIntegerParseError(position, result.unwrap_err()));
         }
         Ok(Node {
             position,
@@ -261,7 +261,7 @@ fn parse_node(
         let c = reader.peek();
         if let None = c {
             reader.read();
-            return Err(Error::UnexpectedEndOfSource(reader.pos()));
+            return Err(Error::SourceUnexpectedEndOfSource(reader.pos()));
         }
         let c = c.unwrap();
         if c == ')' {
@@ -272,7 +272,7 @@ fn parse_node(
         let element = parse_element(reader, true, false)?;
         match element {
             Some(element) => arguments.push(element),
-            None => return Err(Error::UnexpectedEndOfSource(reader.pos())),
+            None => return Err(Error::SourceUnexpectedEndOfSource(reader.pos())),
         }
     }
     Ok(Node {
@@ -291,7 +291,7 @@ fn parse_list(reader: &mut SourceReader<Node>, position: TextPosition) -> Result
     loop {
         let Some(c) = reader.peek() else {
             reader.read();
-            return Err(Error::UnexpectedEndOfSource(reader.pos()));
+            return Err(Error::SourceUnexpectedEndOfSource(reader.pos()));
         };
         if c == ']' {
             reader.read();
@@ -300,12 +300,12 @@ fn parse_list(reader: &mut SourceReader<Node>, position: TextPosition) -> Result
         }
         if is_closing_bracket(c) {
             reader.read();
-            return Err(Error::UnexpectedCharacter(reader.pos(), c));
+            return Err(Error::SourceUnexpectedCharacter(reader.pos(), c));
         }
         let element = parse_element(reader, true, false)?;
         match element {
             Some(element) => values.push(element),
-            None => return Err(Error::UnexpectedEndOfSource(reader.pos())),
+            None => return Err(Error::SourceUnexpectedEndOfSource(reader.pos())),
         }
     }
     Ok(Node {
@@ -321,7 +321,7 @@ fn parse_map(reader: &mut SourceReader<Node>, position: TextPosition) -> Result<
     loop {
         let Some(c) = reader.peek() else {
             reader.read();
-            return Err(Error::UnexpectedEndOfSource(reader.pos()));
+            return Err(Error::SourceUnexpectedEndOfSource(reader.pos()));
         };
         if c == '}' {
             reader.read();
@@ -330,25 +330,25 @@ fn parse_map(reader: &mut SourceReader<Node>, position: TextPosition) -> Result<
         }
         if is_closing_bracket(c) {
             reader.read();
-            return Err(Error::UnexpectedCharacter(reader.pos(), c));
+            return Err(Error::SourceUnexpectedCharacter(reader.pos(), c));
         }
         let key_position = reader.pos();
         let key = parse_element(reader, true, false)?;
         let Some(key) = key else {
-            return Err(Error::UnexpectedEndOfSource(reader.pos()));
+            return Err(Error::SourceUnexpectedEndOfSource(reader.pos()));
         };
         let Node { position: _, value: NodeType::Atom(key_string) } = key else {
-            return Err(Error::UnexpectedElement(key.position, key.value));
+            return Err(Error::SourceUnexpectedElement(key.position, key.value));
         };
         let value = parse_element(reader, true, false)?;
         match value {
             Some(value) => {
                 let replace = map.insert(key_string, value);
                 if let Some(_) = replace {
-                    return Err(Error::DuplicateKeyInMap(key_position));
+                    return Err(Error::SourceDuplicateKeyInMap(key_position));
                 }
             }
-            None => return Err(Error::UnexpectedEndOfSource(reader.pos())),
+            None => return Err(Error::SourceUnexpectedEndOfSource(reader.pos())),
         }
     }
     Ok(Node {

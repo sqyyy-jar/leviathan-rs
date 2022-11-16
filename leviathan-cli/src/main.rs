@@ -26,7 +26,17 @@ fn main() {
                 return;
             }
             let source = source.unwrap();
-            println!("{:#?}", leviathan_parser::source_parser::parse(&source));
+            let source_result = leviathan_parser::source_parser::parse(&source);
+            if source_result.is_err() {
+                println!("{:#?}", source_result.unwrap_err());
+                return;
+            }
+            let structure_result = leviathan_parser::structure_parser::parse(source_result.unwrap().0);
+            if structure_result.is_err() {
+                println!("{:#?}", structure_result.unwrap_err());
+                return;
+            }
+            println!("{:#?}", structure_result.unwrap());
         }
         _ => {
             unreachable!();
