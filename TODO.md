@@ -8,3 +8,5 @@
 * [x] Finish function parsing
 * [ ] Improve error messages
 * [ ] Improve TextPosition logging
+* [ ] Move strings instead of cloning
+* [ ] Increase use of move as an alternative to cloning
