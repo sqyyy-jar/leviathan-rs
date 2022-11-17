@@ -1,24 +1,30 @@
-use std::collections::HashMap;
+use leviathan_common::structure::{Function, Structure};
+use std::collections::{HashMap, HashSet, LinkedList};
 
-use leviathan_common::structure::Structure;
-
-pub struct Resolver {
-    functions: Vec<()>,
-    prelude: Vec<String>,
-    scope: HashMap<String, String>,
+pub struct Resolver<'a> {
+    _function_pool: HashSet<Function>,
+    _functions: HashMap<String, FunctionOverloader<'a>>,
+    _types: HashMap<String, () /* TODO */>,
 }
 
-pub struct ResolvedStructure {}
+impl Resolver<'_> {
+    pub fn new() -> Self {
+        Self {
+            _function_pool: HashSet::new(),
+            _functions: HashMap::new(),
+            _types: HashMap::new(),
+        }
+    }
 
-pub fn resolve(structure: Structure) {
-    todo!("resolve to ResolvedStructure")
+    pub fn add(&mut self, _structure: Structure) {
+        todo!()
+    }
 }
 
-pub trait ResolverPlugin {
-    fn run(resolver: &mut Resolver);
-}
+pub struct FunctionOverloader<'a>(LinkedList<&'a Function>);
 
-pub struct FunctionSignature {
-    name: String,
-    arguments: Vec<(String, String)>,
+impl<'a> FunctionOverloader<'a> {
+    pub fn new() -> Self {
+        Self(LinkedList::new())
+    }
 }

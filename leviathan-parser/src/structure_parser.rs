@@ -1,26 +1,24 @@
-use std::slice::Iter;
-
 use leviathan_common::{
     parser::source::{Node, NodeType},
     prelude::*,
-    structure::{Expression, ExpressionType, Function, Structure},
+    structure::{Expression, ExpressionType, Function, Namespace, Structure},
     util::TextPosition,
 };
+use std::vec::IntoIter;
 
 pub fn parse(nodes: Vec<Node>) -> Result<Structure> {
     let mut structure = Structure::new(
-        String::new(),
-        Vec::with_capacity(0),
+        Namespace::new(),
         Vec::with_capacity(0),
         Vec::with_capacity(0),
     );
-    let mut iter = nodes.iter();
+    let mut iter = nodes.into_iter();
     parse_namespace(&mut structure, &mut iter)?;
     parse_body(&mut structure, &mut iter)?;
     Ok(structure)
 }
 
-fn parse_namespace(structure: &mut Structure, nodes: &mut Iter<Node>) -> Result<()> {
+fn parse_namespace(structure: &mut Structure, nodes: &mut IntoIter<Node>) -> Result<()> {
     let mut last_position = TextPosition::new(1, 0);
     loop {
         let Some(next) = nodes.next() else {
@@ -29,54 +27,61 @@ fn parse_namespace(structure: &mut Structure, nodes: &mut Iter<Node>) -> Result<
         let Node { position, value } = next;
         match value {
             NodeType::Comment(_) => {
-                last_position = position.clone();
+                last_position = position;
                 continue;
             }
             NodeType::Node {
-                operator: op,
-                arguments: args,
+                operator,
+                mut arguments,
             } => {
-                if !op.eq("ns") {
-                    return Err(Error::StructureExpectedNamespaceGot(
-                        position.clone(),
-                        op.clone(),
-                    ));
+                if !operator.eq("ns") {
+                    return Err(Error::StructureExpectedNamespaceGot(position, operator));
                 }
-                if args.len() < 1 || args.len() > 2 {
-                    return Err(Error::StructureInvalidNamespace(position.clone()));
+                if arguments.len() < 1 || arguments.len() > 2 {
+                    return Err(Error::StructureInvalidNamespace(position));
                 }
-                let ns = &args[0];
-                if let NodeType::Identifier(ns) = &ns.value {
-                    structure.namespace = ns.clone();
+                let namespace_node = arguments.remove(0);
+                if let NodeType::Identifier(namespace_string) = namespace_node.value {
+                    parse_namespace_string(structure, namespace_string)?;
                 } else {
-                    return Err(Error::StructureInvalidNamespace(position.clone()));
+                    return Err(Error::StructureInvalidNamespace(position));
                 }
-                if args.len() != 2 {
+                if arguments.len() != 2 {
                     break;
                 }
-                let ns_args = &args[1];
-                if let NodeType::List(ns_args) = &ns_args.value {
-                    for ns_arg in ns_args {
-                        if let NodeType::Atom(ns_arg) = &ns_arg.value {
-                            structure.namespace_arguments.push(ns_arg.clone());
-                        } else {
-                            return Err(Error::StructureInvalidNamespaceArgument(ns_arg.position));
-                        }
+                let namespace_tags = arguments.remove(0);
+                let NodeType::List(namespace_tags) = namespace_tags.value else {
+                    return Err(Error::StructureInvalidNamespaceArguments(position));
+                };
+                for namespace_tag in namespace_tags {
+                    if let NodeType::Atom(namespace_tag) = namespace_tag.value {
+                        structure.namespace.tags.push(namespace_tag);
+                    } else {
+                        return Err(Error::StructureInvalidNamespaceTags(namespace_tag.position));
                     }
-                } else {
-                    return Err(Error::StructureInvalidNamespaceArguments(position.clone()));
                 }
                 break;
             }
             _ => {
-                return Err(Error::StructureExpectedNamespace(position.clone()));
+                return Err(Error::StructureExpectedNamespace(position));
             }
         }
     }
     Ok(())
 }
 
-fn parse_body(structure: &mut Structure, nodes: &mut Iter<Node>) -> Result<()> {
+fn parse_namespace_string(structure: &mut Structure, namespace: String) -> Result<()> {
+    for namespace_pacakge in namespace
+        .split_terminator('/')
+        .filter(|it| !it.is_empty())
+        .map(str::to_string)
+    {
+        structure.namespace.packages.push(namespace_pacakge);
+    }
+    Ok(())
+}
+
+fn parse_body(structure: &mut Structure, nodes: &mut IntoIter<Node>) -> Result<()> {
     loop {
         let Some(node) = nodes.next() else {
             break;
@@ -88,17 +93,14 @@ fn parse_body(structure: &mut Structure, nodes: &mut Iter<Node>) -> Result<()> {
                 arguments,
             } => match operator.as_str() {
                 "fn" => {
-                    parse_function(structure, arguments, position.clone())?;
+                    parse_function(structure, arguments, position)?;
                 }
                 _ => {
-                    return Err(Error::StructureUnknownRootOperator(
-                        position.clone(),
-                        operator.clone(),
-                    ));
+                    return Err(Error::StructureUnknownRootOperator(position, operator));
                 }
             },
             _ => {
-                return Err(Error::StructureUnexpectedElement(position.clone()));
+                return Err(Error::StructureUnexpectedElement(position));
             }
         }
     }
@@ -107,86 +109,93 @@ fn parse_body(structure: &mut Structure, nodes: &mut Iter<Node>) -> Result<()> {
 
 fn parse_function(
     structure: &mut Structure,
-    arguments: &Vec<Node>,
+    mut arguments: Vec<Node>,
     position: TextPosition,
 ) -> Result<()> {
     if arguments.len() < 3 || arguments.len() > 4 {
         return Err(Error::StructureWrongFunctionStructure(position));
     }
-    let NodeType::Identifier(name) = &arguments[0].value else {
-        return Err(Error::StructureWrongFunctionStructure(arguments[0].position.clone()));
+    let arg_identifier = arguments.remove(0);
+    let NodeType::Identifier(function_name) = arg_identifier.value else {
+                return Err(Error::StructureWrongFunctionStructure(arg_identifier.position));
     };
-    let NodeType::List(argument_nodes) = &arguments[1].value else {
-        return Err(Error::StructureWrongFunctionStructure(arguments[1].position.clone()));
+    let arg_arguments = arguments.remove(0);
+    let NodeType::List(argument_nodes) = arg_arguments.value else {
+                return Err(Error::StructureWrongFunctionStructure(arg_arguments.position));
     };
     if argument_nodes.len() % 2 != 0 {
         return Err(Error::StructureInvalidFunctionParameters(
-            arguments[1].position.clone(),
+            arg_arguments.position,
         ));
     }
     let mut function_arguments = Vec::with_capacity(0);
-    let mut argument_nodes = argument_nodes.iter();
+    let mut argument_nodes = argument_nodes.into_iter();
     loop {
         let Some(key) = argument_nodes.next() else {
             break;
         };
-        let NodeType::Atom(key_atom) = &key.value else {
+        let NodeType::Atom(key_atom) = key.value else {
             return Err(Error::StructureInvalidFunctionParameters(key.position));
         };
         let Some(value) = argument_nodes.next() else {
             return Err(Error::StructureInvalidFunctionParameters(key.position));
         };
-        let NodeType::Identifier(value_identifier) = &value.value else {
+        let NodeType::Identifier(value_identifier) = value.value else {
             return Err(Error::StructureInvalidFunctionParameters(value.position));
         };
-        function_arguments.push((key_atom.clone(), value_identifier.clone()));
+        function_arguments.push((key_atom, value_identifier));
     }
-    let code;
-    let mut tags = Vec::with_capacity(0);
-    if arguments.len() == 3 {
-        code = node_to_expression(&arguments[2]);
-        if code.is_none() {
+    let function_code;
+    let mut function_tags = Vec::with_capacity(0);
+    if arguments.len() == 1 {
+        let argument_code = arguments.remove(0);
+        let argument_code_position = argument_code.position;
+        function_code = node_to_expression(argument_code);
+        if function_code.is_none() {
             return Err(Error::StructureWrongFunctionStructure(
-                arguments[2].position.clone(),
+                argument_code_position,
             ));
         }
     } else {
-        let NodeType::List(tags_) = &arguments[2].value else {
-            return Err(Error::StructureWrongFunctionStructure(arguments[2].position.clone()));
+        let argument_tags = arguments.remove(0);
+        let NodeType::List(tags) = argument_tags.value else {
+                        return Err(Error::StructureWrongFunctionStructure(argument_tags.position));
         };
-        tags = tags_
-            .iter()
+        function_tags = tags
+            .into_iter()
             .map(node_to_expression)
             .filter(Option::is_some)
             .map(Option::unwrap)
             .collect();
-        code = node_to_expression(&arguments[3]);
-        if code.is_none() {
+        let argument_code = arguments.remove(0);
+        let argument_code_position = argument_code.position;
+        function_code = node_to_expression(argument_code);
+        if function_code.is_none() {
             return Err(Error::StructureWrongFunctionStructure(
-                arguments[3].position.clone(),
+                argument_code_position,
             ));
         }
     }
     structure.functions.push(Function {
-        name: name.clone(),
+        name: function_name,
         arguments: function_arguments,
-        tags,
-        code: code.unwrap(),
+        tags: function_tags,
+        code: function_code.unwrap(),
     });
     Ok(())
 }
 
-fn node_to_expression(node: &Node) -> Option<Expression> {
-    match &node.value {
+fn node_to_expression(node: Node) -> Option<Expression> {
+    match node.value {
         NodeType::Node {
             operator,
             arguments,
         } => Some(Expression {
             position: node.position,
             value: ExpressionType::Invoke {
-                operator: operator.clone(),
+                operator,
                 arguments: arguments
-                    .iter()
+                    .into_iter()
                     .map(node_to_expression)
                     .filter(Option::is_some)
                     .map(Option::unwrap)
@@ -197,8 +206,8 @@ fn node_to_expression(node: &Node) -> Option<Expression> {
             position: node.position,
             value: ExpressionType::List(
                 value
-                    .iter()
-                    .map(|it| node_to_expression(it))
+                    .into_iter()
+                    .map(node_to_expression)
                     .filter(Option::is_some)
                     .map(Option::unwrap)
                     .collect(),
@@ -206,8 +215,8 @@ fn node_to_expression(node: &Node) -> Option<Expression> {
         }),
         NodeType::Map(value) => {
             let map = value
-                .iter()
-                .map(|(key, value)| (key.clone(), node_to_expression(value)))
+                .into_iter()
+                .map(|(key, value)| (key, node_to_expression(value)))
                 .filter(|(_, value)| value.is_some())
                 .map(|(key, value)| (key, value.unwrap()))
                 .collect();
@@ -218,27 +227,27 @@ fn node_to_expression(node: &Node) -> Option<Expression> {
         }
         NodeType::Identifier(value) => Some(Expression {
             position: node.position,
-            value: ExpressionType::Identifier(value.clone()),
+            value: ExpressionType::Identifier(value),
         }),
         NodeType::Atom(value) => Some(Expression {
             position: node.position,
-            value: ExpressionType::Atom(value.clone()),
+            value: ExpressionType::Atom(value),
         }),
         NodeType::String(value) => Some(Expression {
             position: node.position,
-            value: ExpressionType::String(value.clone()),
+            value: ExpressionType::String(value),
         }),
         NodeType::Integer(value) => Some(Expression {
             position: node.position,
-            value: ExpressionType::Integer(value.clone()),
+            value: ExpressionType::Integer(value),
         }),
         NodeType::Float(value) => Some(Expression {
             position: node.position,
-            value: ExpressionType::Float(value.clone()),
+            value: ExpressionType::Float(value),
         }),
         NodeType::Bool(value) => Some(Expression {
             position: node.position,
-            value: ExpressionType::Bool(value.clone()),
+            value: ExpressionType::Bool(value),
         }),
         _ => None,
     }

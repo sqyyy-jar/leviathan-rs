@@ -1,29 +1,36 @@
 #![cfg_attr(not(feature = "parser_structure"), cfg(never))]
 
-use std::collections::HashMap;
-
 use crate::util::TextPosition;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Structure {
-    pub namespace: String,
-    pub namespace_arguments: Vec<String>,
+    pub namespace: Namespace,
     pub imports: Vec<String>,
     pub functions: Vec<Function>,
 }
 
 impl Structure {
-    pub fn new(
-        namespace: String,
-        namespace_arguments: Vec<String>,
-        imports: Vec<String>,
-        functions: Vec<Function>,
-    ) -> Self {
+    pub fn new(namespace: Namespace, imports: Vec<String>, functions: Vec<Function>) -> Self {
         Self {
             namespace,
-            namespace_arguments,
             imports,
             functions,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Namespace {
+    pub packages: Vec<String>,
+    pub tags: Vec<String>,
+}
+
+impl Namespace {
+    pub fn new() -> Self {
+        Self {
+            packages: Vec::with_capacity(0),
+            tags: Vec::with_capacity(0),
         }
     }
 }
