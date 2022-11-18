@@ -1,7 +1,7 @@
 use leviathan_common::{
     parser::source::{Node, NodeType},
     prelude::*,
-    structure::{Expression, ExpressionType, Function, Namespace, Structure},
+    structure::{Expression, ExpressionType, Function, Namespace, Structure, Type},
     util::TextPosition,
 };
 use std::vec::IntoIter;
@@ -112,7 +112,7 @@ fn parse_function(
     mut arguments: Vec<Node>,
     position: TextPosition,
 ) -> Result<()> {
-    if arguments.len() < 3 || arguments.len() > 4 {
+    if arguments.len() < 3 || arguments.len() > 5 {
         return Err(Error::StructureWrongFunctionStructure(position));
     }
     let arg_identifier = arguments.remove(0);
@@ -145,6 +145,7 @@ fn parse_function(
         };
         function_arguments.push((key_atom, value_identifier));
     }
+    let mut function_return_type = Type::Unit;
     let function_code;
     let mut function_tags = Vec::with_capacity(0);
     if arguments.len() == 1 {
@@ -157,28 +158,78 @@ fn parse_function(
             ));
         }
     } else {
-        let argument_tags = arguments.remove(0);
-        let NodeType::List(tags) = argument_tags.value else {
-                        return Err(Error::StructureWrongFunctionStructure(argument_tags.position));
-        };
-        function_tags = tags
-            .into_iter()
-            .map(node_to_expression)
-            .filter(Option::is_some)
-            .map(Option::unwrap)
-            .collect();
-        let argument_code = arguments.remove(0);
-        let argument_code_position = argument_code.position;
-        function_code = node_to_expression(argument_code);
-        if function_code.is_none() {
-            return Err(Error::StructureWrongFunctionStructure(
-                argument_code_position,
-            ));
+        let first = arguments.remove(0);
+        match first.value {
+            NodeType::Identifier(return_type_string) => {
+                function_return_type = match return_type_string.as_str() {
+                    "unit" => Type::Unit,
+                    "bool" => Type::Bool,
+                    "int" => Type::Int,
+                    "float" => Type::Float,
+                    "str" => Type::String,
+                    "atom" => Type::Atom,
+                    "list" => Type::List,
+                    "map" => Type::Map,
+                    _ => {
+                        return Err(Error::StructureUnknownType(
+                            first.position,
+                            return_type_string,
+                        ));
+                    }
+                };
+                let second = arguments.remove(0);
+                let argument_code_position;
+                if arguments.len() == 0 {
+                    argument_code_position = second.position;
+                    function_code = node_to_expression(second);
+                } else {
+                    let NodeType::List(tags) = second.value else {
+                        return Err(Error::StructureWrongFunctionStructure(second.position));
+                    };
+                    function_tags = tags
+                        .into_iter()
+                        .map(node_to_expression)
+                        .filter(Option::is_some)
+                        .map(Option::unwrap)
+                        .collect();
+                    let argument_code = arguments.remove(0);
+                    argument_code_position = argument_code.position;
+                    function_code = node_to_expression(argument_code);
+                }
+                if function_code.is_none() {
+                    return Err(Error::StructureWrongFunctionStructure(
+                        argument_code_position,
+                    ));
+                }
+            }
+            NodeType::List(tags) => {
+                if arguments.len() != 1 {
+                    return Err(Error::StructureWrongFunctionStructure(first.position));
+                }
+                function_tags = tags
+                    .into_iter()
+                    .map(node_to_expression)
+                    .filter(Option::is_some)
+                    .map(Option::unwrap)
+                    .collect();
+                let argument_code = arguments.remove(0);
+                let argument_code_position = argument_code.position;
+                function_code = node_to_expression(argument_code);
+                if function_code.is_none() {
+                    return Err(Error::StructureWrongFunctionStructure(
+                        argument_code_position,
+                    ));
+                }
+            }
+            _ => {
+                return Err(Error::StructureWrongFunctionStructure(first.position));
+            }
         }
     }
     structure.functions.push(Function {
         name: function_name,
         arguments: function_arguments,
+        return_type: function_return_type,
         tags: function_tags,
         code: function_code.unwrap(),
     });

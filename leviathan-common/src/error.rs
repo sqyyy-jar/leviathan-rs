@@ -77,6 +77,9 @@ pub enum Error {
     #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
     #[error("Invalid function parameters at {0}; expected [:<NAME> <TYPE> ...]")]
     StructureInvalidFunctionParameters(TextPosition),
+    #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
+    #[error("Unknown type '{1}' at {0}")]
+    StructureUnknownType(TextPosition, String),
 }
 
 impl Debug for Error {
