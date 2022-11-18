@@ -16,7 +16,10 @@
 * [ ] Improve rules for function naming in [Structure](leviathan-parser/src/structure_parser.rs)
 * [ ] Check for correctness of namespaces
 * [ ] Add support for types
-* [ ] Add return types
+* [x] Add return types
+
+# Ideas
+* Use TreeMap for Namespace resolving
 
 ## BuildStructure
 1. collect all the functions and their bodies into a single structure
