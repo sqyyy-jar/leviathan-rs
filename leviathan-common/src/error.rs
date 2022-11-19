@@ -9,6 +9,8 @@ pub enum Error {
     Generic(String),
     #[error(transparent)]
     IO(#[from] std::io::Error),
+    #[error("Invalid namespace")]
+    InvalidNamespace,
     // --------------------------------------------------------------
     #[cfg_attr(not(feature = "parser_source"), cfg(never))]
     #[error("Unexpected end of source at {0}")]

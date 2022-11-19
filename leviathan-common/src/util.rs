@@ -1,3 +1,4 @@
+use crate::prelude::*;
 use std::{
     collections::{HashMap, LinkedList},
     fmt::{Debug, Display},
@@ -27,6 +28,8 @@ impl Debug for TextPosition {
     }
 }
 
+pub struct Namespace(Vec<String>);
+
 pub struct NamespacedTree<V: Sized> {
     root: HashMap<String, NamespacedTreeNode<V>>,
 }
@@ -44,14 +47,38 @@ impl<V> NamespacedTree<V> {
 
     pub fn insert(
         &mut self,
-        key: String,
+        key: &String,
         value: NamespacedTreeNode<V>,
     ) -> Option<NamespacedTreeNode<V>> {
-        self.root.insert(key, value)
+        self.root.insert(key.clone(), value)
     }
 
     pub fn get_mut(&mut self, key: &String) -> Option<&mut NamespacedTreeNode<V>> {
         self.root.get_mut(key)
+    }
+
+    pub fn insert_at(&mut self, namespace: &Namespace) -> Result<()> {
+        let Some(first_key) = namespace.0.get(0) else {
+            return Err(Error::InvalidNamespace);
+        };
+        if !self.root.contains_key(first_key) {
+            self.root
+                .insert(first_key.clone(), NamespacedTreeNode::empty_branch());
+        }
+        let Some(mut current) = self.root.get(first_key) else {
+            return Err(Error::Generic("Unexpected error in util".into()));
+        };
+        let mut iter = namespace.0.iter();
+        iter.next();
+        for package in iter {
+            match current {
+                NamespacedTreeNode::Leaf { elements } => {
+
+                }
+                _ => {todo!()}
+            }
+        }
+        todo!()
     }
 
     pub fn collect_vec(self) -> Vec<V> {
