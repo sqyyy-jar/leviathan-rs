@@ -4,15 +4,15 @@ It currently is in early development and will just be a fun project of me.
 
 ## Features
 * Abstract Syntax Tree Parsing
-  * Nodes
-  * Lists
-  * Maps
-  * Identifiers
-  * Atoms
-  * Strings
-  * Integers
-  * Floats
-  * Comments
+* Nodes
+* Lists
+* Maps
+* Identifiers
+* Atoms
+* Strings
+* Integers
+* Floats
+* Comments
 
 ### Node
 A node looks like this:
