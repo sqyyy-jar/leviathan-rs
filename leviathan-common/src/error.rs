@@ -62,11 +62,8 @@ pub enum Error {
     #[error("Invalid namespace (ns <IDENT>) at {0}")]
     StructureInvalidNamespace(TextPosition),
     #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
-    #[error("Invalid namespace arguments (ns <IDENT> <ARGS>) at {0}")]
+    #[error("Invalid namespace arguments (ns <IDENT>) at {0}")]
     StructureInvalidNamespaceArguments(TextPosition),
-    #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
-    #[error("Invalid namespace tag (ns <IDENT> <ARGS>) at {0}")]
-    StructureInvalidNamespaceTags(TextPosition),
     #[cfg_attr(not(feature = "parser_structure"), cfg(never))]
     #[error("Unexpected element at {0}")]
     StructureUnexpectedElement(TextPosition),

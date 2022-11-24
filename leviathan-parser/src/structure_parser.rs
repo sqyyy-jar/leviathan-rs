@@ -4,7 +4,7 @@ use leviathan_common::{
     structure::{Expression, ExpressionType, Function, Namespace, Structure, Type},
     util::TextPosition,
 };
-use std::vec::IntoIter;
+use std::{str::FromStr, vec::IntoIter};
 
 pub fn parse(nodes: Vec<Node>) -> Result<Structure> {
     let mut structure = Structure::new(
@@ -37,7 +37,7 @@ fn parse_namespace(structure: &mut Structure, nodes: &mut IntoIter<Node>) -> Res
                 if !operator.eq("ns") {
                     return Err(Error::StructureExpectedNamespaceGot(position, operator));
                 }
-                if arguments.len() < 1 || arguments.len() > 2 {
+                if arguments.len() != 2 {
                     return Err(Error::StructureInvalidNamespace(position));
                 }
                 let namespace_node = arguments.remove(0);
@@ -45,20 +45,6 @@ fn parse_namespace(structure: &mut Structure, nodes: &mut IntoIter<Node>) -> Res
                     parse_namespace_string(structure, namespace_string)?;
                 } else {
                     return Err(Error::StructureInvalidNamespace(position));
-                }
-                if arguments.len() != 2 {
-                    break;
-                }
-                let namespace_tags = arguments.remove(0);
-                let NodeType::List(namespace_tags) = namespace_tags.value else {
-                    return Err(Error::StructureInvalidNamespaceArguments(position));
-                };
-                for namespace_tag in namespace_tags {
-                    if let NodeType::Atom(namespace_tag) = namespace_tag.value {
-                        structure.namespace.tags.push(namespace_tag);
-                    } else {
-                        return Err(Error::StructureInvalidNamespaceTags(namespace_tag.position));
-                    }
                 }
                 break;
             }
@@ -71,12 +57,12 @@ fn parse_namespace(structure: &mut Structure, nodes: &mut IntoIter<Node>) -> Res
 }
 
 fn parse_namespace_string(structure: &mut Structure, namespace: String) -> Result<()> {
-    for namespace_pacakge in namespace
+    for namespace_package in namespace
         .split_terminator('/')
         .filter(|it| !it.is_empty())
         .map(str::to_string)
     {
-        structure.namespace.packages.push(namespace_pacakge);
+        structure.namespace.0.push(namespace_package);
     }
     Ok(())
 }
@@ -244,7 +230,11 @@ fn node_to_expression(node: Node) -> Option<Expression> {
         } => Some(Expression {
             position: node.position,
             value: ExpressionType::Invoke {
-                operator,
+                operator: (if let Ok(operator) = Namespace::from_str(operator.as_str()) {
+                    operator
+                } else {
+                    return None;
+                }),
                 arguments: arguments
                     .into_iter()
                     .map(node_to_expression)

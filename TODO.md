@@ -17,9 +17,7 @@
 * [ ] Check for correctness of namespaces
 * [ ] Add support for types
 * [x] Add return types
-
-# Ideas
-* Use TreeMap for Namespace resolving
+* [ ] Add function overloading
 
 ## BuildStructure
 1. collect all the functions and their bodies into a single structure
