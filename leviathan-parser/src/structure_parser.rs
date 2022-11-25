@@ -37,7 +37,7 @@ fn parse_namespace(structure: &mut Structure, nodes: &mut IntoIter<Node>) -> Res
                 if !operator.eq("ns") {
                     return Err(Error::StructureExpectedNamespaceGot(position, operator));
                 }
-                if arguments.len() != 2 {
+                if arguments.len() != 1 {
                     return Err(Error::StructureInvalidNamespace(position));
                 }
                 let namespace_node = arguments.remove(0);
@@ -213,7 +213,9 @@ fn parse_function(
         }
     }
     structure.functions.push(Function {
-        name: function_name,
+        name: structure
+            .namespace
+            .clone_merge(&Namespace::from_str(function_name.as_str()).unwrap()),
         arguments: function_arguments,
         return_type: function_return_type,
         tags: function_tags,

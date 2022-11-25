@@ -1,5 +1,5 @@
-use crate::resolver::Resolver;
+use crate::resolver::CompileTask;
 
-pub fn load_std(_resolver: &mut Resolver) {
+pub fn load_std(_task: &mut CompileTask) {
     unimplemented!()
 }

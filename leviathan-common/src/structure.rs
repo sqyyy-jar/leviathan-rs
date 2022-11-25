@@ -20,6 +20,17 @@ impl Structure {
     }
 }
 
+pub struct Source {
+    pub name: String,
+    pub functions: Vec<Function>,
+}
+
+impl Source {
+    pub fn new(name: String, functions: Vec<Function>) -> Self {
+        Self { name, functions }
+    }
+}
+
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]
 pub struct Namespace(pub Vec<String>);
 
@@ -28,9 +39,15 @@ impl Namespace {
         Self(Vec::with_capacity(0))
     }
 
-    pub fn clone_with_package(&self, package: String) -> Self {
+    pub fn merge(&mut self, mut other: Self) {
+        self.0.append(&mut other.0);
+    }
+
+    pub fn clone_with_package(&self, package: &Namespace) -> Self {
         let mut result = self.clone();
-        result.0.push(package);
+        for package in &package.0 {
+            result.0.push(package.clone());
+        }
         result
     }
 
@@ -61,7 +78,7 @@ impl FromStr for Namespace {
 
 #[derive(Debug)]
 pub struct Function {
-    pub name: String,
+    pub name: Namespace,
     pub arguments: Vec<(String, String)>,
     pub return_type: Type,
     pub tags: Vec<Expression>,
