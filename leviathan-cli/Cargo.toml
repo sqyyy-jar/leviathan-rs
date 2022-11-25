@@ -7,4 +7,5 @@ edition = "2021"
 leviathan-parser = { path = "../leviathan-parser" }
 #leviathan = { path = "../leviathan" }
 leviathan-common = { path = "../leviathan-common" }
+leviathan-compiler = { path = "../leviathan-compiler" }
 clap = { version = "4.0.22", features = ["derive"] }

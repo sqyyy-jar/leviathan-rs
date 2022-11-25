@@ -1,4 +1,5 @@
 use clap::{arg, Command};
+use leviathan_compiler::{resolver::CompileTask, rt};
 use std::fs;
 
 fn cli() -> Command {
@@ -36,7 +37,12 @@ fn main() {
                 println!("{:#?}", structure_result.unwrap_err());
                 return;
             }
-            println!("{:#?}", structure_result.unwrap());
+            let mut compile_task = CompileTask::new();
+            rt::load_rt(&mut compile_task);
+            compile_task.load_structure(structure_result.unwrap()).unwrap();
+            compile_task.validate().unwrap();
+            println!("Dump: {:#?}", compile_task.root);
+            //println!("{:#?}", structure_result.unwrap());
         }
         _ => {
             unreachable!();
