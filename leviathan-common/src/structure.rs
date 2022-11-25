@@ -79,7 +79,7 @@ impl FromStr for Namespace {
 #[derive(Debug)]
 pub struct Function {
     pub name: Namespace,
-    pub arguments: Vec<(String, String)>,
+    pub arguments: Vec<(String, Type)>,
     pub return_type: Type,
     pub tags: Vec<Expression>,
     pub code: Expression,
@@ -116,6 +116,24 @@ pub enum Type {
     Atom,
     List,
     Map,
+}
+
+impl FromStr for Type {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "unit" => Ok(Self::Unit),
+            "bool" => Ok(Self::Bool),
+            "int" => Ok(Self::Int),
+            "float" => Ok(Self::Float),
+            "string" => Ok(Self::String),
+            "atom" => Ok(Self::Atom),
+            "list" => Ok(Self::List),
+            "map" => Ok(Self::Map),
+            _ => Err(Error::Generic(format!("Unknown type '{}'", s))),
+        }
+    }
 }
 
 impl Debug for Type {

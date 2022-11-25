@@ -129,7 +129,7 @@ fn parse_function(
         let NodeType::Identifier(value_identifier) = value.value else {
             return Err(Error::StructureInvalidFunctionParameters(value.position));
         };
-        function_arguments.push((key_atom, value_identifier));
+        function_arguments.push((key_atom, Type::from_str(&value_identifier)?));
     }
     let mut function_return_type = Type::Unit;
     let function_code;
@@ -147,22 +147,7 @@ fn parse_function(
         let first = arguments.remove(0);
         match first.value {
             NodeType::Identifier(return_type_string) => {
-                function_return_type = match return_type_string.as_str() {
-                    "unit" => Type::Unit,
-                    "bool" => Type::Bool,
-                    "int" => Type::Int,
-                    "float" => Type::Float,
-                    "str" => Type::String,
-                    "atom" => Type::Atom,
-                    "list" => Type::List,
-                    "map" => Type::Map,
-                    _ => {
-                        return Err(Error::StructureUnknownType(
-                            first.position,
-                            return_type_string,
-                        ));
-                    }
-                };
+                function_return_type = Type::from_str(&return_type_string)?;
                 let second = arguments.remove(0);
                 let argument_code_position;
                 if arguments.len() == 0 {

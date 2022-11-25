@@ -6,7 +6,7 @@ use std::collections::{HashMap, LinkedList};
 
 #[derive(Debug)]
 pub struct CompileTask {
-    pub functions: Vec<Function>,
+    pub functions: Vec<ResolvedFunction>,
     pub prelude: Vec<Namespace>,
     pub root: Package,
 }
@@ -105,7 +105,7 @@ impl CompileTask {
     pub fn register_function(&mut self, function: Function) -> Result<()> {
         let signature = Signature::from(&function);
         self.register_signature(&function.name, signature)?;
-        self.functions.push(function);
+        self.functions.push(self.resolve_function(function)?);
         Ok(())
     }
 
@@ -163,7 +163,7 @@ impl CompileTask {
         Ok(())
     }
 
-    fn validate_function(&self, function: &Function) -> Result<()> {
+    fn validate_function(&self, function: &ResolvedFunction) -> Result<()> {
         self.validate_expression(&function.code)
     }
 
@@ -227,6 +227,24 @@ impl CompileTask {
         }
         Err(Error::Generic(format!("Could not resolve {:?}", operator)))
     }
+
+    fn resolve_function(&self, function: Function) -> Result<ResolvedFunction> {
+        let mut result = ResolvedFunction {
+            qualified_name: todo!(),
+            arguments: function.arguments,
+            return_type: function.return_type,
+            code: function.code,
+        };
+        todo!()
+    }
+}
+
+#[derive(Debug)]
+pub struct ResolvedFunction {
+    pub qualified_name: Namespace,
+    pub arguments: Vec<(String, Type)>,
+    pub return_type: Type,
+    pub code: Expression,
 }
 
 #[derive(Debug)]
