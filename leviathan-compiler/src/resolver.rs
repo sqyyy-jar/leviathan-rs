@@ -70,7 +70,11 @@ impl CompileTask {
         return Some(current);
     }
 
-    pub fn resolve_package_mut(&mut self, namespace: &Namespace, keep: usize) -> Option<&mut Package> {
+    pub fn resolve_package_mut(
+        &mut self,
+        namespace: &Namespace,
+        keep: usize,
+    ) -> Option<&mut Package> {
         let mut iter = namespace.0.iter();
         if iter.len() <= keep {
             return Some(&mut self.root);
@@ -199,9 +203,11 @@ impl CompileTask {
     ) -> Result<()> {
         let package = self.resolve_package(operator, 1);
         if let Some(package) = package {
-            for _overload in &package.functions.get(operator.0.last().unwrap()).unwrap().0 {
-                // TODO implement overloads
-                return Ok(());
+            if package.functions.contains_key(operator.0.last().unwrap()) {
+                for _overload in &package.functions.get(operator.0.last().unwrap()).unwrap().0 {
+                    // TODO implement overloads
+                    return Ok(());
+                }
             }
         } else {
             println!("Tried namespace {:?}", operator);
@@ -209,9 +215,11 @@ impl CompileTask {
         for prelude in &self.prelude {
             let package = self.resolve_package(&prelude.clone_merge(operator), 1);
             if let Some(package) = package {
-                for _overload in &package.functions.get(operator.0.last().unwrap()).unwrap().0 {
-                    // TODO implement overloads
-                    return Ok(());
+                if package.functions.contains_key(operator.0.last().unwrap()) {
+                    for _overload in &package.functions.get(operator.0.last().unwrap()).unwrap().0 {
+                        // TODO implement overloads
+                        return Ok(());
+                    }
                 }
             } else {
                 println!("Tried namespace {:?}/{:?}", prelude, operator);
