@@ -1,4 +1,8 @@
 # TODO
+## Major
+* [ ] Migrate to from Structure to [Source](leviathan-common/src/structure.rs#L23)
+
+## Minor
 * [ ] Deny no-whitespace between elements (e.g. "(x)(y)" should not be valid)
 * [ ] Implement bool
 * [ ] Add checking logic
