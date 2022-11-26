@@ -36,6 +36,9 @@ pub enum Token {
     #[regex(r#""([^"]|\\")*""#)]
     String,
 
+    #[regex("#[^\n]*\n", logos::skip)]
+    Comment,
+
     #[error]
     #[regex(r"[ \t\n\f,]+", logos::skip)]
     Error,

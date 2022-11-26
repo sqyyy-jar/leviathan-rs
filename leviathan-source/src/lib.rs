@@ -10,6 +10,7 @@ pub fn test() {
     use logos::Logos;
 
     let source = r#"
+# This is a comment
 (fn test {:x, :y} "abc")
 "#;
     let lexer = parser::Token::lexer(source);
