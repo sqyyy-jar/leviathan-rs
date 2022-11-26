@@ -1,8 +1,6 @@
 [workspace]
 members = [
-  "leviathan-cli",
-  "leviathan-parser",
-  "leviathan-runtime",
-  "leviathan-common",
-  "leviathan-compiler"
+  "leviathan-source",
+  "leviathan-compiler",
+  "leviathan-cli"
 ]

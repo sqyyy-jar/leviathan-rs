@@ -1,3 +1,0 @@
-(ns std/test)
-(fn add [:b int :a int]
-  (+ a b))

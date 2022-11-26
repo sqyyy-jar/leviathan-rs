@@ -4,5 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-leviathan-common = { path = "../leviathan-common", features = ["compiler"] }
-leviathan-parser = { path = "../leviathan-parser" }
+leviathan-source = {path = "../leviathan-source"}
