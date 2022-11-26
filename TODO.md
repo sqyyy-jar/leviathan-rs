@@ -1,5 +1,5 @@
 # TODO
-![Overview map](map.svg)
+![Overview map](map.png)
 
 ## Major
 * [ ] Migrate to from Structure to [Source](leviathan-common/src/structure.rs#L23)
