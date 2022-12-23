@@ -154,6 +154,16 @@ mod tests {
                 assert!(token.chars.len() == 5);
             }
         }
+
+        #[test]
+        fn test_atom_unicode() {
+            use crate::tokenizer::{self, TokenType};
+            let res = tokenizer::parse(":äöüß");
+            let res = res.unwrap();
+            assert!(res.len() == 1);
+            assert!(res[0].token_type == TokenType::Atom);
+            assert!(res[0].chars.len() == 9);
+        }
     }
 
     mod ident {
