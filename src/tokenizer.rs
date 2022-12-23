@@ -15,7 +15,7 @@ pub struct Token {
     pub token_type: TokenType,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TokenType {
     LeftParen,
     RightParen,
