@@ -1,12 +1,13 @@
+pub mod grouper;
 pub mod tokenizer;
 
 use std::{env, fs};
 
 fn main() {
-    println!(
-        "{:#?}",
-        tokenizer::parse(&fs::read_to_string(env::args().nth(1).unwrap()).unwrap())
-    );
+    let tokens =
+        tokenizer::parse(&fs::read_to_string(env::args().nth(1).unwrap()).unwrap()).unwrap();
+    let ast = grouper::group(&tokens).unwrap();
+    println!("{:#?}", ast);
 }
 
 mod tests {
