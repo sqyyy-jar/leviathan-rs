@@ -228,6 +228,16 @@ mod tests {
             assert!(res[0].token_type == TokenType::False);
             assert!(res[0].chars.len() == 5);
         }
+
+        #[test]
+        fn test_ident_unicode() {
+            use crate::tokenizer::{self, TokenType};
+            let res = tokenizer::parse("äöüß");
+            let res = res.unwrap();
+            assert!(res.len() == 1);
+            assert!(res[0].token_type == TokenType::Ident);
+            assert!(res[0].chars.len() == 8);
+        }
     }
 
     #[test]
