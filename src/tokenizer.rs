@@ -3,6 +3,7 @@ use std::{iter::Peekable, ops::Range, str::Chars};
 #[derive(Debug)]
 pub enum Error {
     InvalidFloatingPointNumber(),
+    InvalidStringLiteral(),
     NonAsciiWhitespace(),
     UnexpectedEOF(),
 }
@@ -190,6 +191,47 @@ impl State<'_> {
         });
         Ok(())
     }
+
+    fn string(&mut self) -> Result<(), Error> {
+        let start_index = self.index;
+        let start_column = self.column;
+        self.advance();
+        while let Some(c) = self.source.peek().cloned() {
+            match c {
+                '"' => {
+                    self.advance();
+                    break;
+                }
+                '\n' => {
+                    return Err(Error::InvalidStringLiteral());
+                }
+                '\\' => {
+                    self.advance();
+                    let Some(next) = self.source.peek().cloned() else {
+                        return Err(Error::UnexpectedEOF());
+                    };
+                    match next {
+                        '\\' | 'n' | 'r' | 't' | '"' => {
+                            self.advance();
+                        }
+                        _ => {
+                            return Err(Error::InvalidStringLiteral());
+                        }
+                    }
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+        self.tokens.push(Token {
+            line: self.line,
+            column: start_column,
+            chars: start_index..self.index,
+            token_type: TokenType::String,
+        });
+        Ok(())
+    }
 }
 
 pub fn parse(source: &str) -> Result<Vec<Token>, Error> {
@@ -274,7 +316,7 @@ pub fn parse(source: &str) -> Result<Vec<Token>, Error> {
                 state.ident(start_index, start_column, String::from("."))?;
             }
             '"' => {
-                todo!("String")
+                state.string()?;
             }
             w if w.is_ascii_whitespace() || w == ',' => {
                 state.advance();
