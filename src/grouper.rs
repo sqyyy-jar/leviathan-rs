@@ -80,6 +80,9 @@ pub fn group(tokens: &[Token]) -> Result<Group, Error> {
                 let Some(OpenGroup { group_type, start_index, elements }) = groups.pop() else {
                     return Err(Error::UnopenedBracket());
                 };
+                if group_type == GroupType::Root {
+                    return Err(Error::UnopenedBracket());
+                }
                 if !match token.token_type {
                     tokenizer::TokenType::RightParen => group_type == GroupType::Round,
                     tokenizer::TokenType::RightBracket => group_type == GroupType::Square,
