@@ -27,6 +27,9 @@ pub enum TokenType {
     Semicolon,
     True,
     False,
+    Ns,
+    Use,
+    Fn,
     Int,
     Float,
     String,
@@ -186,6 +189,9 @@ impl State<'_> {
             token_type: match buf.as_str() {
                 "true" => TokenType::True,
                 "false" => TokenType::False,
+                "ns" => TokenType::Ns,
+                "use" => TokenType::Use,
+                "fn" => TokenType::Fn,
                 _ => TokenType::Ident,
             },
         });
