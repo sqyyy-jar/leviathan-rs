@@ -1,5 +1,6 @@
 pub mod ast;
 pub mod grouper;
+pub mod resolver;
 pub mod tokenizer;
 
 use std::{env, fs};
