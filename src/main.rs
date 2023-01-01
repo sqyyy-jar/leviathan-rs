@@ -1,14 +1,16 @@
-pub mod ast;
+pub mod compiler;
 pub mod grouper;
 pub mod tokenizer;
 
 use std::{env, fs};
 
 fn main() {
+    let source = fs::read_to_string(env::args().nth(1).unwrap()).unwrap();
     let tokens =
-        tokenizer::parse(&fs::read_to_string(env::args().nth(1).unwrap()).unwrap()).unwrap();
+        tokenizer::parse(&source).unwrap();
     let ast = grouper::group(&tokens).unwrap();
-    println!("{:#?}", ast);
+    let compile_result = compiler::compile(&source, &tokens, &ast).unwrap();
+    println!("{:#?}", compile_result);
 }
 
 #[cfg(test)]
