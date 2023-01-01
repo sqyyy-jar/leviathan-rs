@@ -25,6 +25,8 @@ pub enum TokenType {
     LeftBrace,
     RightBrace,
     Semicolon,
+    Ns,
+    Fn,
     True,
     False,
     Int,
@@ -184,6 +186,8 @@ impl State<'_> {
             column: start_column,
             chars: start_index..self.index,
             token_type: match buf.as_str() {
+                "ns" => TokenType::Ns,
+                "fn" => TokenType::Fn,
                 "true" => TokenType::True,
                 "false" => TokenType::False,
                 _ => TokenType::Ident,
