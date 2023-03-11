@@ -84,6 +84,7 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>> {
                         span: s_index..s_value_index + s_value_len,
                     });
                 }
+                source.eat();
                 let s_len = c.len_utf8() * 2 + s_value_len;
                 tokens.push(Token::String {
                     span: s_index..s_index + s_len,

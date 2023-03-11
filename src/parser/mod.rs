@@ -4,6 +4,7 @@ pub mod ast;
 pub mod error;
 pub mod tokenizer;
 
+#[derive(Debug)]
 pub enum Token {
     LeftParen { span: Span },
     RightParen { span: Span },
