@@ -1,5 +1,7 @@
 use std::{iter::Peekable, ops::Range, str::Chars};
 
+pub type Span = Range<usize>;
+
 pub struct Source<'a> {
     source: &'a str,
     chars: Peekable<Chars<'a>>,
@@ -28,7 +30,7 @@ impl<'a> Source<'a> {
         self.index += c.len_utf8();
     }
 
-    pub fn str(&mut self, span: Range<usize>) -> &'a str {
+    pub fn str(&mut self, span: Span) -> &'a str {
         &self.source[span]
     }
 }
