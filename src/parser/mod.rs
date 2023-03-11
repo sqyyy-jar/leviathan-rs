@@ -28,3 +28,26 @@ impl Token {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum Node {
+    Ident { span: Span },
+    Int { span: Span, value: i64 },
+    UInt { span: Span, value: u64 },
+    Float { span: Span, value: f64 },
+    String { span: Span, value: String },
+    Node { span: Span, sub_nodes: Vec<Node> },
+}
+
+impl Node {
+    pub fn span(&self) -> Span {
+        match self {
+            Node::Ident { span }
+            | Node::Int { span, .. }
+            | Node::UInt { span, .. }
+            | Node::Float { span, .. }
+            | Node::String { span, .. }
+            | Node::Node { span, .. } => span.clone(),
+        }
+    }
+}
