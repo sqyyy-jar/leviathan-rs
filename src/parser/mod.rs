@@ -1,6 +1,7 @@
 use crate::util::source::Span;
 
 pub mod ast;
+pub mod error;
 pub mod tokenizer;
 
 pub enum Token {

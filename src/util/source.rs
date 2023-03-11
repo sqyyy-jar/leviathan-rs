@@ -30,7 +30,7 @@ impl<'a> Source<'a> {
         self.index += c.len_utf8();
     }
 
-    pub fn str(&mut self, span: Span) -> &'a str {
+    pub fn str(&self, span: Span) -> &'a str {
         &self.source[span]
     }
 }
