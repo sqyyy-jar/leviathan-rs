@@ -8,4 +8,6 @@ pub enum Error {
     NoWhitespaceBetweenTokens { span: Span },
     UnexpectedEndOfSource { span: Span },
     InvalidStringEscapeCode { span: Span },
+    IllegalTokenAtRootLevel { span: Span },
+    UnclosedParenthesis { span: Span },
 }

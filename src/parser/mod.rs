@@ -12,7 +12,7 @@ pub enum Token {
     Int { span: Span, value: i64 },
     UInt { span: Span, value: u64 },
     Float { span: Span, value: f64 },
-    String { span: Span, value: Span },
+    String { span: Span, value: String },
 }
 
 impl Token {

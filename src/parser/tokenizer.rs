@@ -38,6 +38,7 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>> {
                 });
             }
             '"' => {
+                let mut buf = String::with_capacity(0);
                 let s_index = source.index;
                 source.eat();
                 let s_value_index = source.index;
@@ -60,8 +61,21 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>> {
                             let esc_c = source.peek();
                             source.eat();
                             match esc_c {
-                                '"' | '\\' | 'n' | 't' | 'r' => {
+                                '"' | '\\' => {
+                                    buf.push(esc_c);
                                     s_value_len += esc_c.len_utf8();
+                                }
+                                'n' => {
+                                    buf.push('\n');
+                                    s_value_len += 1;
+                                }
+                                't' => {
+                                    buf.push('\t');
+                                    s_value_len += 1;
+                                }
+                                'r' => {
+                                    buf.push('\r');
+                                    s_value_len += 1;
                                 }
                                 'x' => {
                                     todo!("\\x")
@@ -74,6 +88,7 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>> {
                             }
                         }
                         _ => {
+                            buf.push(c);
                             source.eat();
                             s_value_len += c.len_utf8();
                         }
@@ -88,7 +103,7 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>> {
                 let s_len = c.len_utf8() * 2 + s_value_len;
                 tokens.push(Token::String {
                     span: s_index..s_index + s_len,
-                    value: s_value_index..s_value_index + s_value_len,
+                    value: buf,
                 });
                 g_string = true;
             }
