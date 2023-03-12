@@ -90,9 +90,7 @@ impl CompileTask {
         let mut new_modules = Vec::with_capacity(modules.len());
         for module in modules {
             new_modules.push(match &module.data {
-                CollectedModuleData::Assembly(assembly_data) => {
-                    Assembly.gen_intermediary(module)?
-                }
+                CollectedModuleData::Assembly(_) => Assembly.gen_intermediary(module)?,
             });
         }
         self.state = State::Intermediary {

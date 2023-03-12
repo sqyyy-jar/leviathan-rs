@@ -10,14 +10,14 @@ pub fn tokenize(src: String) -> Result<TokenList> {
     let mut tokens = Vec::new();
     let mut g_index = 0;
     let mut g_len = 0;
-    let mut g_string = false;
+    let mut g_token = false;
     while source.has_next() {
         let c = source.peek();
         match c {
             '(' => {
                 let index = source.index;
                 source.eat();
-                if g_len > 0 || g_string {
+                if g_len > 0 || g_token {
                     return Err(Error::NoWhitespaceBetweenTokens {
                         span: index..source.index,
                     });
@@ -32,12 +32,20 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                     tokens.push(parse_token(g_index..g_index + g_len, &mut source)?);
                     g_len = 0;
                 }
+                g_token = true;
                 source.eat();
                 tokens.push(Token::RightParen {
                     span: index..source.index,
                 });
             }
             '"' => {
+                if g_token {
+                    let index = source.index;
+                    source.eat();
+                    return Err(Error::NoWhitespaceBetweenTokens {
+                        span: index..source.index,
+                    });
+                }
                 let mut buf = String::with_capacity(0);
                 let s_index = source.index;
                 source.eat();
@@ -105,7 +113,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                     span: s_index..s_index + s_len,
                     value: buf,
                 });
-                g_string = true;
+                g_token = true;
             }
             _ => {
                 if c.is_whitespace() {
@@ -113,10 +121,11 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                         tokens.push(parse_token(g_index..g_index + g_len, &mut source)?);
                     }
                     g_len = 0;
+                    g_token = false;
                     source.eat();
                     continue;
                 }
-                if g_string {
+                if g_token {
                     let index = source.index;
                     source.eat();
                     return Err(Error::NoWhitespaceBetweenTokens {
