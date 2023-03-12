@@ -29,7 +29,8 @@ impl ModuleType for Assembly {
             };
             let keyword = &src[keyword_span.clone()];
             match keyword {
-                "scope" => {
+                "scope" | "+scope" => {
+                    let public = keyword.starts_with('+');
                     if sub_nodes.len() != 3 {
                         return Err(Error::InvalidStatement { span });
                     }
@@ -39,18 +40,38 @@ impl ModuleType for Assembly {
                         });
                     };
                     let name = &src[name_span.clone()];
-                    for func in &exported_funcs {
-                        if name == func.name {
-                            return Err(Error::DuplicateName {
-                                span: name_span.clone(),
-                            });
+                    for func in &scopes {
+                        match func {
+                            AssemblyCollectedScope::Public { export_index, .. } => {
+                                if name == exported_funcs[*export_index].name {
+                                    return Err(Error::DuplicateName {
+                                        span: name_span.clone(),
+                                    });
+                                }
+                            }
+                            AssemblyCollectedScope::Private {
+                                name: func_name, ..
+                            } => {
+                                if name == func_name {
+                                    return Err(Error::DuplicateName {
+                                        span: name_span.clone(),
+                                    });
+                                }
+                            }
                         }
                     }
-                    exported_funcs.push(CollectedModuleFunctionExport {
+                    if public {
+                        exported_funcs.push(CollectedModuleFunctionExport {
+                            name: name.to_string(),
+                        });
+                        scopes.push(AssemblyCollectedScope::Public {
+                            export_index: exported_funcs.len() - 1,
+                            expr: sub_nodes.pop().unwrap(),
+                        });
+                        continue;
+                    }
+                    scopes.push(AssemblyCollectedScope::Private {
                         name: name.to_string(),
-                    });
-                    scopes.push(AssemblyCollectedScope {
-                        export_index: exported_funcs.len() - 1,
                         expr: sub_nodes.pop().unwrap(),
                     });
                 }
@@ -76,7 +97,7 @@ pub struct AssemblyCollectedModuleData {
 }
 
 #[derive(Debug)]
-pub struct AssemblyCollectedScope {
-    pub export_index: usize,
-    pub expr: Node,
+pub enum AssemblyCollectedScope {
+    Public { export_index: usize, expr: Node },
+    Private { name: String, expr: Node },
 }

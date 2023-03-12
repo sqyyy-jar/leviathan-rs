@@ -10,6 +10,7 @@ use self::{
 
 pub mod collecting;
 pub mod error;
+pub mod intermediary;
 pub mod mod_type;
 
 pub const MODULE_TYPES: Map<&'static str, &dyn ModuleType> = phf_map! {
@@ -69,6 +70,21 @@ impl CompileTask {
         };
         modules.push(mod_type.collect(module)?);
         Ok(())
+    }
+
+    pub fn gen_intermediary(&mut self) -> Result<()> {
+        let State::LayoutCollecting { .. } = &mut self.state else {
+            return Err(Error::InvalidOperation);
+        };
+        let State::LayoutCollecting { modules } =
+            std::mem::replace(&mut self.state, State::IntermediaryGeneration {}) else
+        {
+            unreachable!();
+        };
+        for _module in modules {
+            todo!()
+        }
+        todo!()
     }
 }
 
