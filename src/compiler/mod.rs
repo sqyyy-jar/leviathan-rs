@@ -1,6 +1,6 @@
 use phf::{phf_map, Map};
 
-use crate::parser::Node;
+use crate::parser::{BareModule, Node};
 
 use self::{
     collecting::CollectedModule,
@@ -17,9 +17,10 @@ pub const MODULE_TYPES: Map<&'static str, &dyn ModuleType> = phf_map! {
 };
 
 pub trait ModuleType {
-    fn collect(&self, name: String, root: Vec<Node>) -> Result<CollectedModule>;
+    fn collect(&self, module: BareModule) -> Result<CollectedModule>;
 }
 
+#[derive(Debug)]
 pub struct CompileTask {
     pub state: State,
 }
@@ -35,52 +36,46 @@ impl Default for CompileTask {
 }
 
 impl CompileTask {
-    pub fn include(
-        &mut self,
-        source: &str,
-        BareModule { name, mut root }: BareModule,
-    ) -> Result<()> {
+    pub fn include(&mut self, module: BareModule) -> Result<()> {
         let State::LayoutCollecting { modules } = &mut self.state else {
             return Err(Error::InvalidOperation);
         };
-        if root.is_empty() {
-            return Err(Error::EmptyModule { name });
+        if module.root.is_empty() {
+            return Err(Error::EmptyModule { name: module.name });
         }
-        let Node::Node { span: _, sub_nodes: mod_sub_nodes } = &mut root[0] else {
+        let Node::Node { span: _, sub_nodes: mod_sub_nodes } = &module.root[0] else {
             panic!("Invalid AST");
         };
         if mod_sub_nodes.len() != 2 {
-            return Err(Error::EmptyModule { name });
+            return Err(Error::EmptyModule { name: module.name });
         }
-        let ident_node = mod_sub_nodes.pop().unwrap();
-        let keyword_node = mod_sub_nodes.pop().unwrap();
+        let keyword_node = &mod_sub_nodes[0];
+        let ident_node = &mod_sub_nodes[1];
         let Node::Ident { span: keyword_span } = keyword_node else {
             return Err(Error::InvalidModuleDeclaration { span: keyword_node.span() });
         };
-        let keyword = &source[keyword_span.clone()];
+        let keyword = &module.src[keyword_span.clone()];
         if keyword != "mod" {
-            return Err(Error::InvalidModuleDeclaration { span: keyword_span });
+            return Err(Error::InvalidModuleDeclaration {
+                span: keyword_span.clone(),
+            });
         }
         let Node::Ident { span: ident_span } = ident_node else {
             return Err(Error::InvalidModuleDeclaration { span: ident_node.span() });
         };
-        let ident = &source[ident_span.clone()];
+        let ident = &module.src[ident_span.clone()];
         let Some(mod_type) = MODULE_TYPES.get(ident) else {
-            return Err(Error::UnknownModuleType { span: ident_span });
+            return Err(Error::UnknownModuleType { span: ident_span.clone() });
         };
-        modules.push(mod_type.collect(name, root)?);
+        modules.push(mod_type.collect(module)?);
         Ok(())
     }
 }
 
+#[derive(Debug)]
 pub enum State {
     LayoutCollecting { modules: Vec<CollectedModule> },
     IntermediaryGeneration {},
     DependencyFiltering {},
     BinaryAssembling {},
-}
-
-pub struct BareModule {
-    pub name: String,
-    pub root: Vec<Node>,
 }

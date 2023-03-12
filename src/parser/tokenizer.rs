@@ -2,11 +2,11 @@ use crate::util::source::{Source, Span};
 
 use super::{
     error::{Error, Result},
-    Token,
+    Token, TokenList,
 };
 
-pub fn tokenize(source: &str) -> Result<Vec<Token>> {
-    let mut source = Source::new(source);
+pub fn tokenize(src: String) -> Result<TokenList> {
+    let mut source = Source::new(&src);
     let mut tokens = Vec::new();
     let mut g_index = 0;
     let mut g_len = 0;
@@ -131,7 +131,7 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>> {
             }
         }
     }
-    Ok(tokens)
+    Ok(TokenList { src, tokens })
 }
 
 fn parse_token(span: Span, source: &mut Source) -> Result<Token> {

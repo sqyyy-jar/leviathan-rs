@@ -5,6 +5,19 @@ pub mod error;
 pub mod tokenizer;
 
 #[derive(Debug)]
+pub struct TokenList {
+    pub src: String,
+    pub tokens: Vec<Token>,
+}
+
+#[derive(Debug)]
+pub struct BareModule {
+    pub name: String,
+    pub src: String,
+    pub root: Vec<Node>,
+}
+
+#[derive(Debug)]
 pub enum Token {
     LeftParen { span: Span },
     RightParen { span: Span },

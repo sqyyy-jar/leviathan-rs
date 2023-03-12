@@ -1,6 +1,6 @@
 use super::{
     error::{Error, Result},
-    Node, Token,
+    BareModule, Node, Token, TokenList,
 };
 
 struct StackFrame {
@@ -8,7 +8,7 @@ struct StackFrame {
     nodes: Vec<Node>,
 }
 
-pub fn build_ast(tokens: Vec<Token>) -> Result<Vec<Node>> {
+pub fn build_ast(name: String, TokenList { src, tokens }: TokenList) -> Result<BareModule> {
     let mut stack = vec![StackFrame {
         index: 0,
         nodes: Vec::with_capacity(0),
@@ -83,5 +83,9 @@ pub fn build_ast(tokens: Vec<Token>) -> Result<Vec<Node>> {
             span: last.index..last.index + 1,
         });
     }
-    Ok(stack.pop().unwrap().nodes)
+    Ok(BareModule {
+        name,
+        src,
+        root: stack.pop().unwrap().nodes,
+    })
 }
