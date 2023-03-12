@@ -3,8 +3,9 @@ use phf::{phf_map, Map};
 use crate::parser::{BareModule, Node};
 
 use self::{
-    collecting::CollectedModule,
+    collecting::{CollectedModule, CollectedModuleData},
     error::{Error, Result},
+    intermediary::IntermediaryModule,
     mod_type::assembly::Assembly,
 };
 
@@ -19,6 +20,8 @@ pub const MODULE_TYPES: Map<&'static str, &dyn ModuleType> = phf_map! {
 
 pub trait ModuleType {
     fn collect(&self, module: BareModule) -> Result<CollectedModule>;
+
+    fn gen_intermediary(&self, module: CollectedModule) -> Result<IntermediaryModule>;
 }
 
 #[derive(Debug)]
@@ -76,22 +79,33 @@ impl CompileTask {
         let State::LayoutCollecting { .. } = &mut self.state else {
             return Err(Error::InvalidOperation);
         };
-        let State::LayoutCollecting { modules } =
-            std::mem::replace(&mut self.state, State::IntermediaryGeneration {}) else
-        {
+        let State::LayoutCollecting { modules } = std::mem::replace(
+            &mut self.state,
+            State::Intermediary {
+                modules: Vec::with_capacity(0),
+            },
+        ) else {
             unreachable!();
         };
-        for _module in modules {
-            todo!()
+        let mut new_modules = Vec::with_capacity(modules.len());
+        for module in modules {
+            new_modules.push(match &module.data {
+                CollectedModuleData::Assembly(assembly_data) => {
+                    Assembly.gen_intermediary(module)?
+                }
+            });
         }
-        todo!()
+        self.state = State::Intermediary {
+            modules: new_modules,
+        };
+        Ok(())
     }
 }
 
 #[derive(Debug)]
 pub enum State {
     LayoutCollecting { modules: Vec<CollectedModule> },
-    IntermediaryGeneration {},
-    DependencyFiltering {},
-    BinaryAssembling {},
+    Intermediary { modules: Vec<IntermediaryModule> },
+    DependencyFiltered {},
+    BinaryAssembled {},
 }

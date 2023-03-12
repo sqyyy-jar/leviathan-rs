@@ -2,6 +2,7 @@ use crate::{
     compiler::{
         collecting::{CollectedModule, CollectedModuleData, CollectedModuleFunctionExport},
         error::{Error, Result},
+        intermediary::IntermediaryModule,
         ModuleType,
     },
     parser::{BareModule, Node},
@@ -88,6 +89,10 @@ impl ModuleType for Assembly {
             exported_funcs,
             data: CollectedModuleData::Assembly(AssemblyCollectedModuleData { scopes }),
         })
+    }
+
+    fn gen_intermediary(&self, _module: CollectedModule) -> Result<IntermediaryModule> {
+        todo!()
     }
 }
 
