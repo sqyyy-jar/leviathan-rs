@@ -9,8 +9,9 @@ pub mod util;
 
 fn main() {
     let src = r#"
-    (mod assembly)
-    "#
+(mod assembly)
+(scope abc 1)
+"#
     .to_string();
     let tokens = dbg!(tokenize(src).unwrap());
     let ast = dbg!(build_ast("testing".into(), tokens).unwrap());

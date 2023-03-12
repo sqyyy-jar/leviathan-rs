@@ -8,4 +8,9 @@ pub enum Error {
     EmptyModule { name: String },
     InvalidModuleDeclaration { span: Span },
     UnknownModuleType { span: Span },
+    EmptyNode { span: Span },
+    UnexpectedToken { span: Span },
+    InvalidKeyword { span: Span },
+    InvalidStatement { span: Span },
+    DuplicateName { span: Span },
 }

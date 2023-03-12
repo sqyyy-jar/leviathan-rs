@@ -1,3 +1,5 @@
+use super::mod_type::assembly::AssemblyCollectedModuleData;
+
 #[derive(Debug)]
 pub struct CollectedModule {
     pub name: String,
@@ -13,5 +15,5 @@ pub struct CollectedModuleFunctionExport {
 
 #[derive(Debug)]
 pub enum CollectedModuleData {
-    Assembly {},
+    Assembly(AssemblyCollectedModuleData),
 }
