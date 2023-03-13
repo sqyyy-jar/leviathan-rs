@@ -100,6 +100,7 @@ impl CompileTask {
         for module in modules {
             new_modules.push(match &module.data {
                 CollectedModuleData::Assembly(_) => Assembly.gen_intermediary(module)?,
+                _ => unimplemented!(),
             });
         }
         self.state = State::Intermediary {

@@ -15,15 +15,17 @@ fn main() {
     .to_string();
     let src2 = r#"
 (mod assembly)
-(+scope def 2)
+(+scope def 2.)
+(+scope ghi 3u)
 "#
     .to_string();
-    let tokens = dbg!(tokenize(src).unwrap());
-    let tokens2 = dbg!(tokenize(src2).unwrap());
-    let ast = dbg!(build_ast("testing".into(), tokens).unwrap());
-    let ast2 = dbg!(build_ast("testing".into(), tokens2).unwrap());
+    let tokens = tokenize(src).unwrap();
+    let tokens2 = tokenize(src2).unwrap();
+    let ast = build_ast("testing".into(), tokens).unwrap();
+    let ast2 = build_ast("testing2".into(), tokens2).unwrap();
     let mut task = CompileTask::default();
     task.include(ast).unwrap();
     task.include(ast2).unwrap();
+    task.gen_intermediary().unwrap();
     dbg!(task);
 }

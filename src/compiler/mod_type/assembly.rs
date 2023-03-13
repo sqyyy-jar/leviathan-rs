@@ -1,8 +1,8 @@
 use crate::{
     compiler::{
-        collecting::{CollectedModule, CollectedModuleData, CollectedModuleFunction},
+        collecting::{CollectedFunction, CollectedModule, CollectedModuleData},
         error::{Error, Result},
-        intermediary::IntermediaryModule,
+        intermediary::{Insn, IntermediaryFunction, IntermediaryModule, Reg},
         ModuleType,
     },
     parser::{BareModule, Node},
@@ -14,7 +14,7 @@ impl ModuleType for Assembly {
     fn collect(&self, BareModule { src, root, .. }: BareModule) -> Result<CollectedModule> {
         let mut nodes = root.into_iter();
         nodes.next().unwrap();
-        let mut exported_funcs = Vec::<CollectedModuleFunction>::with_capacity(0);
+        let mut funcs = Vec::<CollectedFunction>::with_capacity(0);
         let mut scopes = Vec::with_capacity(0);
         for node in nodes {
             let Node::Node { span, mut sub_nodes } = node else {
@@ -42,19 +42,22 @@ impl ModuleType for Assembly {
                     };
                     let name = &src[name_span.clone()];
                     for func in &scopes {
-                        let AssemblyCollectedScope { export_index, .. } = func;
-                        if name == exported_funcs[*export_index].name {
+                        let AssemblyCollectedScope {
+                            func_index: export_index,
+                            ..
+                        } = func;
+                        if name == funcs[*export_index].name {
                             return Err(Error::DuplicateName {
                                 span: name_span.clone(),
                             });
                         }
                     }
-                    exported_funcs.push(CollectedModuleFunction {
+                    funcs.push(CollectedFunction {
                         name: name.to_string(),
                         public,
                     });
                     scopes.push(AssemblyCollectedScope {
-                        export_index: exported_funcs.len() - 1,
+                        func_index: funcs.len() - 1,
                         expr: sub_nodes.pop().unwrap(),
                     });
                 }
@@ -67,13 +70,27 @@ impl ModuleType for Assembly {
         }
         Ok(CollectedModule {
             src,
-            exported_funcs,
+            funcs,
             data: CollectedModuleData::Assembly(AssemblyCollectedModuleData { scopes }),
         })
     }
 
-    fn gen_intermediary(&self, _module: CollectedModule) -> Result<IntermediaryModule> {
-        todo!()
+    fn gen_intermediary(
+        &self,
+        CollectedModule { src, funcs, data }: CollectedModule,
+    ) -> Result<IntermediaryModule> {
+        let CollectedModuleData::Assembly(asm) = data else {
+            panic!("Invalid module data");
+        };
+        let mut ir_funcs = Vec::with_capacity(asm.scopes.len());
+        for scope in asm.scopes {
+            ir_funcs.push(gen_scope_intermediary(&src, scope)?);
+        }
+        Ok(IntermediaryModule {
+            src,
+            funcs,
+            ir_funcs,
+        })
     }
 }
 
@@ -84,6 +101,42 @@ pub struct AssemblyCollectedModuleData {
 
 #[derive(Debug)]
 pub struct AssemblyCollectedScope {
-    pub export_index: usize,
+    pub func_index: usize,
     pub expr: Node,
+}
+
+fn gen_scope_intermediary(
+    _src: &str,
+    AssemblyCollectedScope { func_index, expr }: AssemblyCollectedScope,
+) -> Result<IntermediaryFunction> {
+    let mut ir = Vec::with_capacity(2);
+    match expr {
+        Node::Ident { .. } => todo!(),
+        Node::Int { .. } | Node::UInt { .. } | Node::Float { .. } => {
+            match expr {
+                Node::Int { value, .. } => ir.push(Insn::LdcInt {
+                    dst: Reg::R0,
+                    value,
+                }),
+                Node::UInt { value, .. } => ir.push(Insn::LdcUInt {
+                    dst: Reg::R0,
+                    value,
+                }),
+                Node::Float { value, .. } => ir.push(Insn::LdcFloat {
+                    dst: Reg::R0,
+                    value,
+                }),
+                _ => unreachable!(),
+            }
+            ir.push(Insn::Ret);
+            return Ok(IntermediaryFunction {
+                func_index,
+                ir,
+                deps: Vec::with_capacity(0),
+            });
+        }
+        Node::String { .. } => todo!(),
+        Node::Node { .. } => todo!(),
+    }
+    todo!()
 }

@@ -3,12 +3,12 @@ use super::mod_type::assembly::AssemblyCollectedModuleData;
 #[derive(Debug)]
 pub struct CollectedModule {
     pub src: String,
-    pub exported_funcs: Vec<CollectedModuleFunction>,
+    pub funcs: Vec<CollectedFunction>,
     pub data: CollectedModuleData,
 }
 
 #[derive(Debug)]
-pub struct CollectedModuleFunction {
+pub struct CollectedFunction {
     pub name: String,
     pub public: bool,
 }
@@ -16,4 +16,5 @@ pub struct CollectedModuleFunction {
 #[derive(Debug)]
 pub enum CollectedModuleData {
     Assembly(AssemblyCollectedModuleData),
+    Code(()),
 }
