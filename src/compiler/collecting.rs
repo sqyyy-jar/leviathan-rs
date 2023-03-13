@@ -1,4 +1,4 @@
-use super::mod_type::assembly::AssemblyCollectedModuleData;
+use super::mod_type::assembly::AssemblyCollectedScope;
 
 #[derive(Debug)]
 pub struct CollectedModule {
@@ -15,6 +15,6 @@ pub struct CollectedFunction {
 
 #[derive(Debug)]
 pub enum CollectedModuleData {
-    Assembly(AssemblyCollectedModuleData),
+    Assembly { scopes: Vec<AssemblyCollectedScope> },
     Code(()),
 }

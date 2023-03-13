@@ -71,7 +71,7 @@ impl ModuleType for Assembly {
         Ok(CollectedModule {
             src,
             funcs,
-            data: CollectedModuleData::Assembly(AssemblyCollectedModuleData { scopes }),
+            data: CollectedModuleData::Assembly { scopes },
         })
     }
 
@@ -79,11 +79,11 @@ impl ModuleType for Assembly {
         &self,
         CollectedModule { src, funcs, data }: CollectedModule,
     ) -> Result<IntermediaryModule> {
-        let CollectedModuleData::Assembly(asm) = data else {
+        let CollectedModuleData::Assembly { scopes } = data else {
             panic!("Invalid module data");
         };
-        let mut ir_funcs = Vec::with_capacity(asm.scopes.len());
-        for scope in asm.scopes {
+        let mut ir_funcs = Vec::with_capacity(scopes.len());
+        for scope in scopes {
             ir_funcs.push(gen_scope_intermediary(&src, scope)?);
         }
         Ok(IntermediaryModule {
@@ -92,11 +92,6 @@ impl ModuleType for Assembly {
             ir_funcs,
         })
     }
-}
-
-#[derive(Debug)]
-pub struct AssemblyCollectedModuleData {
-    pub scopes: Vec<AssemblyCollectedScope>,
 }
 
 #[derive(Debug)]
