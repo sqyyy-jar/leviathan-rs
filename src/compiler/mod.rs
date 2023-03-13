@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use phf::{phf_map, Map};
 
 use crate::parser::{BareModule, Node};
@@ -33,6 +35,7 @@ impl Default for CompileTask {
     fn default() -> Self {
         Self {
             state: State::LayoutCollecting {
+                dependency_tree: HashMap::with_capacity(0),
                 modules: Vec::with_capacity(0),
             },
         }
@@ -40,10 +43,13 @@ impl Default for CompileTask {
 }
 
 impl CompileTask {
-    pub fn include(&mut self, module: BareModule) -> Result<()> {
-        let State::LayoutCollecting { modules } = &mut self.state else {
+    pub fn include(&mut self, mut module: BareModule) -> Result<()> {
+        let State::LayoutCollecting { dependency_tree, modules } = &mut self.state else {
             return Err(Error::InvalidOperation);
         };
+        if dependency_tree.contains_key(&module.name) {
+            return Err(Error::DuplicateModule { name: module.name });
+        }
         if module.root.is_empty() {
             return Err(Error::EmptyModule { name: module.name });
         }
@@ -71,7 +77,9 @@ impl CompileTask {
         let Some(mod_type) = MODULE_TYPES.get(ident) else {
             return Err(Error::UnknownModuleType { span: ident_span.clone() });
         };
+        let name = std::mem::replace(&mut module.name, String::with_capacity(0));
         modules.push(mod_type.collect(module)?);
+        dependency_tree.insert(name, modules.len() - 1);
         Ok(())
     }
 
@@ -79,9 +87,10 @@ impl CompileTask {
         let State::LayoutCollecting { .. } = &mut self.state else {
             return Err(Error::InvalidOperation);
         };
-        let State::LayoutCollecting { modules } = std::mem::replace(
+        let State::LayoutCollecting { dependency_tree, modules } = std::mem::replace(
             &mut self.state,
             State::Intermediary {
+                dependency_tree: HashMap::with_capacity(0),
                 modules: Vec::with_capacity(0),
             },
         ) else {
@@ -94,6 +103,7 @@ impl CompileTask {
             });
         }
         self.state = State::Intermediary {
+            dependency_tree,
             modules: new_modules,
         };
         Ok(())
@@ -102,8 +112,14 @@ impl CompileTask {
 
 #[derive(Debug)]
 pub enum State {
-    LayoutCollecting { modules: Vec<CollectedModule> },
-    Intermediary { modules: Vec<IntermediaryModule> },
+    LayoutCollecting {
+        dependency_tree: HashMap<String, usize>,
+        modules: Vec<CollectedModule>,
+    },
+    Intermediary {
+        dependency_tree: HashMap<String, usize>,
+        modules: Vec<IntermediaryModule>,
+    },
     DependencyFiltered {},
     BinaryAssembled {},
 }

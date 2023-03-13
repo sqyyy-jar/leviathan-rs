@@ -1,10 +1,9 @@
-use super::collecting::CollectedModuleFunctionExport;
+use super::collecting::CollectedModuleFunction;
 
 #[derive(Debug)]
 pub struct IntermediaryModule {
-    pub name: String,
     pub src: String,
-    pub exported_funcs: Vec<CollectedModuleFunctionExport>,
+    pub exported_funcs: Vec<CollectedModuleFunction>,
     pub dependencies: Vec<IntermediaryDependencyPath>,
     pub funcs: Vec<IntermediaryFunction>,
 }

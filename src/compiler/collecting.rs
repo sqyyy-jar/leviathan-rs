@@ -2,15 +2,15 @@ use super::mod_type::assembly::AssemblyCollectedModuleData;
 
 #[derive(Debug)]
 pub struct CollectedModule {
-    pub name: String,
     pub src: String,
-    pub exported_funcs: Vec<CollectedModuleFunctionExport>,
+    pub exported_funcs: Vec<CollectedModuleFunction>,
     pub data: CollectedModuleData,
 }
 
 #[derive(Debug)]
-pub struct CollectedModuleFunctionExport {
+pub struct CollectedModuleFunction {
     pub name: String,
+    pub public: bool,
 }
 
 #[derive(Debug)]
