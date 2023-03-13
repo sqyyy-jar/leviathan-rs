@@ -4,7 +4,23 @@ use super::collecting::CollectedFunction;
 pub struct IntermediaryModule {
     pub src: String,
     pub funcs: Vec<CollectedFunction>,
+    pub statics: Vec<IntermediaryStatic>,
     pub ir_funcs: Vec<IntermediaryFunction>,
+}
+
+#[derive(Debug)]
+pub struct IntermediaryStatic {
+    pub name: String,
+    pub value: IntermediaryStaticValue,
+}
+
+#[derive(Debug)]
+pub enum IntermediaryStaticValue {
+    Int(i64),
+    UInt(u64),
+    Float(f64),
+    String(String),
+    Buffer { size: usize },
 }
 
 #[derive(Debug)]

@@ -2,7 +2,10 @@ use crate::{
     compiler::{
         collecting::{CollectedFunction, CollectedModule, CollectedModuleData},
         error::{Error, Result},
-        intermediary::{Insn, IntermediaryFunction, IntermediaryModule, Reg},
+        intermediary::{
+            Insn, IntermediaryFunction, IntermediaryModule, IntermediaryStatic,
+            IntermediaryStaticValue, Reg,
+        },
         ModuleType,
     },
     parser::{BareModule, Node},
@@ -71,7 +74,10 @@ impl ModuleType for Assembly {
         Ok(CollectedModule {
             src,
             funcs,
-            data: CollectedModuleData::Assembly { scopes },
+            data: CollectedModuleData::Assembly {
+                statics: vec![],
+                scopes,
+            },
         })
     }
 
@@ -79,9 +85,13 @@ impl ModuleType for Assembly {
         &self,
         CollectedModule { src, funcs, data }: CollectedModule,
     ) -> Result<IntermediaryModule> {
-        let CollectedModuleData::Assembly { scopes } = data else {
+        let CollectedModuleData::Assembly { statics, scopes } = data else {
             panic!("Invalid module data");
         };
+        let mut ir_statics = Vec::with_capacity(statics.len());
+        for static_ in statics {
+            ir_statics.push(gen_static_intermediary(&src, static_)?);
+        }
         let mut ir_funcs = Vec::with_capacity(scopes.len());
         for scope in scopes {
             ir_funcs.push(gen_scope_intermediary(&src, scope)?);
@@ -89,15 +99,48 @@ impl ModuleType for Assembly {
         Ok(IntermediaryModule {
             src,
             funcs,
+            statics: ir_statics,
             ir_funcs,
         })
     }
 }
 
 #[derive(Debug)]
+pub struct AssemblyCollectedStatic {
+    pub name: String,
+    pub expr: Node,
+}
+
+#[derive(Debug)]
 pub struct AssemblyCollectedScope {
     pub func_index: usize,
     pub expr: Node,
+}
+
+fn gen_static_intermediary(
+    _src: &str,
+    AssemblyCollectedStatic { name, expr }: AssemblyCollectedStatic,
+) -> Result<IntermediaryStatic> {
+    match expr {
+        Node::Ident { .. } => todo!(),
+        Node::Int { value, .. } => Ok(IntermediaryStatic {
+            name,
+            value: IntermediaryStaticValue::Int(value),
+        }),
+        Node::UInt { value, .. } => Ok(IntermediaryStatic {
+            name,
+            value: IntermediaryStaticValue::UInt(value),
+        }),
+        Node::Float { value, .. } => Ok(IntermediaryStatic {
+            name,
+            value: IntermediaryStaticValue::Float(value),
+        }),
+        Node::String { value, .. } => Ok(IntermediaryStatic {
+            name,
+            value: IntermediaryStaticValue::String(value),
+        }),
+        Node::Node { .. } => todo!(),
+    }
 }
 
 fn gen_scope_intermediary(
