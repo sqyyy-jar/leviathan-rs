@@ -1,3 +1,5 @@
+use std::ops::RangeFrom;
+
 use crate::util::source::Span;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -14,4 +16,8 @@ pub enum Error {
     InvalidKeyword { span: Span },
     InvalidStatement { span: Span },
     DuplicateName { span: Span },
+    UnknownFunc { span: Span },
+    UnknownStaticFunc { span: Span },
+    InvalidCallSignature { span: Span },
+    NotInSizeRangeFrom { span: Span, range: RangeFrom<usize> },
 }

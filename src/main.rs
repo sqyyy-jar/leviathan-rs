@@ -15,8 +15,8 @@ fn main() {
     .to_string();
     let src2 = r#"
 (mod assembly)
-(+scope def 2.)
-(+scope ghi 3u)
+(static buf
+  (buffer 1024))
 "#
     .to_string();
     let tokens = tokenize(src).unwrap();

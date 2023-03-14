@@ -1,3 +1,5 @@
+use phf::{phf_map, Map};
+
 use crate::{
     compiler::{
         collecting::{CollectedFunction, CollectedModule, CollectedModuleData},
@@ -9,7 +11,39 @@ use crate::{
         ModuleType,
     },
     parser::{BareModule, Node},
+    util::source::Span,
 };
+
+type StaticFunc = fn(name: String, span: Span, nodes: Vec<Node>) -> Result<IntermediaryStatic>;
+
+const STATIC_FUNCS: Map<&'static str, StaticFunc> = phf_map! {
+    "buffer" => static_buffer,
+};
+
+fn static_buffer(name: String, span: Span, mut nodes: Vec<Node>) -> Result<IntermediaryStatic> {
+    if nodes.len() != 2 {
+        return Err(Error::InvalidCallSignature { span });
+    }
+    let size = match nodes.pop().unwrap() {
+        Node::Int { span, value } => {
+            if value < 1 {
+                return Err(Error::NotInSizeRangeFrom { span, range: 1.. });
+            }
+            value as usize
+        }
+        Node::UInt { span, value } => {
+            if value < 1 {
+                return Err(Error::NotInSizeRangeFrom { span, range: 1.. });
+            }
+            value as usize
+        }
+        _ => return Err(Error::InvalidCallSignature { span }),
+    };
+    Ok(IntermediaryStatic {
+        name,
+        value: IntermediaryStaticValue::Buffer { size },
+    })
+}
 
 pub struct Assembly;
 
@@ -17,6 +51,7 @@ impl ModuleType for Assembly {
     fn collect(&self, BareModule { src, root, .. }: BareModule) -> Result<CollectedModule> {
         let mut nodes = root.into_iter();
         nodes.next().unwrap();
+        let mut statics = Vec::with_capacity(0);
         let mut funcs = Vec::<CollectedFunction>::with_capacity(0);
         let mut scopes = Vec::with_capacity(0);
         for node in nodes {
@@ -33,6 +68,31 @@ impl ModuleType for Assembly {
             };
             let keyword = &src[keyword_span.clone()];
             match keyword {
+                "static" => {
+                    if sub_nodes.len() != 3 {
+                        return Err(Error::InvalidStatement { span });
+                    }
+                    let Node::Ident { span: name_span } = &sub_nodes[1] else {
+                        return Err(Error::UnexpectedToken {
+                            span: sub_nodes[1].span(),
+                        });
+                    };
+                    let name = &src[name_span.clone()];
+                    for static_ in &statics {
+                        let AssemblyCollectedStatic {
+                            name: static_name, ..
+                        } = static_;
+                        if name == static_name {
+                            return Err(Error::DuplicateName {
+                                span: name_span.clone(),
+                            });
+                        }
+                    }
+                    statics.push(AssemblyCollectedStatic {
+                        name: name.to_string(),
+                        expr: sub_nodes.pop().unwrap(),
+                    });
+                }
                 "scope" | "+scope" => {
                     let public = keyword.starts_with('+');
                     if sub_nodes.len() != 3 {
@@ -74,10 +134,7 @@ impl ModuleType for Assembly {
         Ok(CollectedModule {
             src,
             funcs,
-            data: CollectedModuleData::Assembly {
-                statics: vec![],
-                scopes,
-            },
+            data: CollectedModuleData::Assembly { statics, scopes },
         })
     }
 
@@ -118,11 +175,11 @@ pub struct AssemblyCollectedScope {
 }
 
 fn gen_static_intermediary(
-    _src: &str,
+    src: &str,
     AssemblyCollectedStatic { name, expr }: AssemblyCollectedStatic,
 ) -> Result<IntermediaryStatic> {
     match expr {
-        Node::Ident { .. } => todo!(),
+        Node::Ident { span } => Err(Error::UnexpectedToken { span }),
         Node::Int { value, .. } => Ok(IntermediaryStatic {
             name,
             value: IntermediaryStaticValue::Int(value),
@@ -139,7 +196,19 @@ fn gen_static_intermediary(
             name,
             value: IntermediaryStaticValue::String(value),
         }),
-        Node::Node { .. } => todo!(),
+        Node::Node { span, sub_nodes } => {
+            if sub_nodes.is_empty() {
+                return Err(Error::EmptyNode { span });
+            }
+            let Node::Ident { span: spa } = &sub_nodes[0] else {
+                return Err(Error::UnexpectedToken { span });
+            };
+            let keyword = &src[spa.clone()];
+            let Some(static_func) = STATIC_FUNCS.get(keyword) else {
+                return Err(Error::UnknownStaticFunc { span: spa.clone() });
+            };
+            (*static_func)(name, span, sub_nodes)
+        }
     }
 }
 
@@ -167,14 +236,13 @@ fn gen_scope_intermediary(
                 _ => unreachable!(),
             }
             ir.push(Insn::Ret);
-            return Ok(IntermediaryFunction {
+            Ok(IntermediaryFunction {
                 func_index,
                 ir,
                 deps: Vec::with_capacity(0),
-            });
+            })
         }
         Node::String { .. } => todo!(),
         Node::Node { .. } => todo!(),
     }
-    todo!()
 }
