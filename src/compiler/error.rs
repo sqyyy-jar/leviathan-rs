@@ -1,6 +1,11 @@
 use std::{ops::RangeFrom, process::exit};
 
-use crate::util::source::Span;
+use ariadne::Source;
+
+use crate::util::{
+    ariadne::{error_report, span_error_report},
+    source::Span,
+};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -82,99 +87,115 @@ impl Error {
         self
     }
 
-    // pub fn report(&self, filename: &str) {
-    //     let report;
-    //     let source;
-    //     let src = match self {
-    //         Error::InvalidOperation => panic!("InvalidOperation"),
-    //         Error::DuplicateModule { name } => {
-    //             report = error_report(
-    //                 filename,
-    //                 &format!("A module with the name '{name}' already exists"),
-    //             );
-    //             source = Source::from("");
-    //         }
-    //         Error::EmptyModule { name } => {
-    //             report = error_report(filename, &format!("The module '{name}' is empty"));
-    //             source = Source::from("");
-    //         }
-    //         Error::InvalidModuleDeclaration { src, span } => {
-    //             report = span_error_report(filename, span, "");
-    //             source = Source::from(src);
-    //         }
-    //         Error::UnknownModuleType { src, span } => {
-    //             report = error_report(filename, &format!("This module type is unknown"));
-    //             source = Source::from(src);
-    //         }
-    //         Error::EmptyNode { src, span } => {
-    //             report = error_report(
-    //                 filename,
-    //                 &format!("A module with the name '' already exists"),
-    //             );
-    //             source = Source::from("");
-    //         }
-    //         Error::UnexpectedToken { span } => {
-    //             report = error_report(
-    //                 filename,
-    //                 &format!("A module with the name '' already exists"),
-    //             );
-    //             source = Source::from("");
-    //         }
-    //         Error::InvalidKeyword { span } => {
-    //             report = error_report(
-    //                 filename,
-    //                 &format!("A module with the name '' already exists"),
-    //             );
-    //             source = Source::from("");
-    //         }
-    //         Error::InvalidStatement { span } => {
-    //             report = error_report(
-    //                 filename,
-    //                 &format!("A module with the name '' already exists"),
-    //             );
-    //             source = Source::from("");
-    //         }
-    //         Error::DuplicateName { span } => {
-    //             report = error_report(
-    //                 filename,
-    //                 &format!("A module with the name '' already exists"),
-    //             );
-    //             source = Source::from("");
-    //         }
-    //         Error::UnknownFunc { span } => {
-    //             report = error_report(
-    //                 filename,
-    //                 &format!("A module with the name '' already exists"),
-    //             );
-    //             source = Source::from("");
-    //         }
-    //         Error::UnknownStaticFunc { span } => {
-    //             report = error_report(
-    //                 filename,
-    //                 &format!("A module with the name '' already exists"),
-    //             );
-    //             source = Source::from("");
-    //         }
-    //         Error::InvalidCallSignature { span } => {
-    //             report = error_report(
-    //                 filename,
-    //                 &format!("A module with the name '' already exists"),
-    //             );
-    //             source = Source::from("");
-    //         }
-    //         Error::NotInSizeRangeFrom { span, range } => {
-    //             report = error_report(
-    //                 filename,
-    //                 &format!("A module with the name '' already exists"),
-    //             );
-    //             source = Source::from("");
-    //         }
-    //     };
-    //     report.eprint((filename, source)).unwrap();
-    // }
+    pub fn report(&self, filename: &str) {
+        let report;
+        let source;
+        match self {
+            Error::InvalidOperation => panic!("InvalidOperation"),
+            Error::DuplicateModule { name: Some(name) } => {
+                report = error_report(
+                    filename,
+                    &format!("A module with the name '{name}' already exists",),
+                );
+                source = Source::from("");
+            }
+            Error::EmptyModule { name: Some(name) } => {
+                report = error_report(filename, &format!("The module '{name}' is empty"));
+                source = Source::from("");
+            }
+            Error::InvalidModuleDeclaration {
+                src: Some(src),
+                span,
+            } => {
+                report = span_error_report(filename, span, "This module declaration is not valid");
+                source = Source::from(src);
+            }
+            Error::UnknownModuleType {
+                src: Some(src),
+                span,
+            } => {
+                report = span_error_report(filename, span, "This module type is unknown");
+                source = Source::from(src);
+            }
+            Error::EmptyNode {
+                src: Some(src),
+                span,
+            } => {
+                report = span_error_report(filename, span, "This node must not be empty");
+                source = Source::from(src);
+            }
+            Error::UnexpectedToken {
+                src: Some(src),
+                span,
+            } => {
+                report = span_error_report(filename, span, "This token is not valid here");
+                source = Source::from(src);
+            }
+            Error::InvalidKeyword {
+                src: Some(src),
+                span,
+            } => {
+                report = span_error_report(filename, span, "This keyword not valid");
+                source = Source::from(src);
+            }
+            Error::InvalidStatement {
+                src: Some(src),
+                span,
+            } => {
+                report = span_error_report(filename, span, "This statement not valid");
+                source = Source::from(src);
+            }
+            Error::DuplicateName {
+                src: Some(src),
+                span,
+            } => {
+                report = span_error_report(filename, span, "This name is already in use");
+                source = Source::from(src);
+            }
+            Error::UnknownFunc {
+                src: Some(src),
+                span,
+            } => {
+                report = span_error_report(filename, span, "This function is not known");
+                source = Source::from(src);
+            }
+            Error::UnknownStaticFunc {
+                src: Some(src),
+                span,
+            } => {
+                report = span_error_report(filename, span, "This static function is not known");
+                source = Source::from(src);
+            }
+            Error::InvalidCallSignature {
+                src: Some(src),
+                span,
+            } => {
+                report = span_error_report(
+                    filename,
+                    span,
+                    "This call signature does not match the function signature",
+                );
+                source = Source::from(src);
+            }
+            Error::NotInSizeRangeFrom {
+                src: Some(src),
+                span,
+                range,
+            } => {
+                report = span_error_report(
+                    filename,
+                    span,
+                    &format!("This number must be bigger or equal to {}", range.start),
+                );
+                source = Source::from(src);
+            }
+            _ => panic!("Tried to report incomplete error"),
+        }
+        report.eprint((filename, source)).unwrap();
+    }
 
-    pub fn abort(&self, _filename: &str) -> ! {
-        // self.report(filename);
+    pub fn abort(&self, filename: &str) -> ! {
+        self.report(filename);
         exit(1);
     }
 }
