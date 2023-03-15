@@ -10,4 +10,5 @@ pub enum Error {
     InvalidStringEscapeCode { span: Span },
     IllegalTokenAtRootLevel { span: Span },
     UnclosedParenthesis { span: Span },
+    InvalidUtf8 { span: Span },
 }

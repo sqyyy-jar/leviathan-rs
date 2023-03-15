@@ -86,7 +86,37 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                                     s_value_len += 1;
                                 }
                                 'x' => {
-                                    todo!("\\x")
+                                    if !source.has_next() {
+                                        return Err(Error::UnexpectedEndOfSource {
+                                            span: index..source.index,
+                                        });
+                                    }
+                                    let ac = source.peek();
+                                    source.eat();
+                                    if !source.has_next() {
+                                        return Err(Error::UnexpectedEndOfSource {
+                                            span: index..source.index,
+                                        });
+                                    }
+                                    let bc = source.peek();
+                                    source.eat();
+                                    if !ac.is_ascii_hexdigit() || !bc.is_ascii_hexdigit() {
+                                        return Err(Error::InvalidStringEscapeCode {
+                                            span: index..source.index,
+                                        });
+                                    }
+                                    let s = [ac as u8, bc as u8];
+                                    let Ok(s) = std::str::from_utf8(&s) else {
+                                        panic!("Utf8");
+                                    };
+                                    let Some(utf_c) =
+                                        char::from_u32(u32::from_str_radix(s, 16).expect("Hex str")) else
+                                    {
+                                        return Err(Error::InvalidUtf8 {
+                                            span: index..source.index,
+                                        });
+                                    };
+                                    buf.push(utf_c);
                                 }
                                 _ => {
                                     return Err(Error::InvalidStringEscapeCode {
