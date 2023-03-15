@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 phf = { version = "0.11.1", features = ["macros"] }
+ariadne = { version = "0.2.0", features = ["auto-color"] }

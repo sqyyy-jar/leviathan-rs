@@ -21,7 +21,7 @@ pub fn build_ast(name: String, TokenList { src, tokens }: TokenList) -> Result<B
             }),
             Token::RightParen { span } => {
                 if stack.len() < 2 {
-                    return Err(Error::IllegalTokenAtRootLevel { span });
+                    return Err(Error::IllegalTokenAtRootLevel { src, span });
                 }
                 let last = stack.pop().unwrap();
                 stack.last_mut().unwrap().nodes.push(Node::Node {
@@ -31,13 +31,13 @@ pub fn build_ast(name: String, TokenList { src, tokens }: TokenList) -> Result<B
             }
             Token::Ident { span } => {
                 if stack.len() < 2 {
-                    return Err(Error::IllegalTokenAtRootLevel { span });
+                    return Err(Error::IllegalTokenAtRootLevel { src, span });
                 }
                 stack.last_mut().unwrap().nodes.push(Node::Ident { span });
             }
             Token::Int { span, value } => {
                 if stack.len() < 2 {
-                    return Err(Error::IllegalTokenAtRootLevel { span });
+                    return Err(Error::IllegalTokenAtRootLevel { src, span });
                 }
                 stack
                     .last_mut()
@@ -47,7 +47,7 @@ pub fn build_ast(name: String, TokenList { src, tokens }: TokenList) -> Result<B
             }
             Token::UInt { span, value } => {
                 if stack.len() < 2 {
-                    return Err(Error::IllegalTokenAtRootLevel { span });
+                    return Err(Error::IllegalTokenAtRootLevel { src, span });
                 }
                 stack
                     .last_mut()
@@ -57,7 +57,7 @@ pub fn build_ast(name: String, TokenList { src, tokens }: TokenList) -> Result<B
             }
             Token::Float { span, value } => {
                 if stack.len() < 2 {
-                    return Err(Error::IllegalTokenAtRootLevel { span });
+                    return Err(Error::IllegalTokenAtRootLevel { src, span });
                 }
                 stack
                     .last_mut()
@@ -67,7 +67,7 @@ pub fn build_ast(name: String, TokenList { src, tokens }: TokenList) -> Result<B
             }
             Token::String { span, value } => {
                 if stack.len() < 2 {
-                    return Err(Error::IllegalTokenAtRootLevel { span });
+                    return Err(Error::IllegalTokenAtRootLevel { src, span });
                 }
                 stack
                     .last_mut()
@@ -80,6 +80,7 @@ pub fn build_ast(name: String, TokenList { src, tokens }: TokenList) -> Result<B
     if stack.len() != 1 {
         let last = stack.pop().unwrap();
         return Err(Error::UnclosedParenthesis {
+            src,
             span: last.index..last.index + 1,
         });
     }

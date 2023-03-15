@@ -2,7 +2,6 @@ use super::collecting::CollectedFunction;
 
 #[derive(Debug)]
 pub struct IntermediaryModule {
-    pub src: String,
     pub funcs: Vec<CollectedFunction>,
     pub statics: Vec<IntermediaryStatic>,
     pub ir_funcs: Vec<IntermediaryFunction>,

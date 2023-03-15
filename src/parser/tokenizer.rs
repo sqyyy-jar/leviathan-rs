@@ -18,8 +18,10 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                 let index = source.index;
                 source.eat();
                 if g_len > 0 || g_token {
+                    let source_index = source.index;
                     return Err(Error::NoWhitespaceBetweenTokens {
-                        span: index..source.index,
+                        src,
+                        span: index..source_index,
                     });
                 }
                 tokens.push(Token::LeftParen {
@@ -29,7 +31,13 @@ pub fn tokenize(src: String) -> Result<TokenList> {
             ')' => {
                 let index = source.index;
                 if g_len > 0 {
-                    tokens.push(parse_token(g_index..g_index + g_len, &mut source)?);
+                    let Some(token) = parse_token(g_index..g_index + g_len, &mut source) else {
+                        return Err(Error::IdentStartingWithDigit {
+                            src,
+                            span: g_index..g_index + g_len,
+                        });
+                    };
+                    tokens.push(token);
                     g_len = 0;
                 }
                 g_token = true;
@@ -42,8 +50,10 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                 if g_len > 0 || g_token {
                     let index = source.index;
                     source.eat();
+                    let source_index = source.index;
                     return Err(Error::NoWhitespaceBetweenTokens {
-                        span: index..source.index,
+                        src,
+                        span: index..source_index,
                     });
                 }
                 let mut buf = String::with_capacity(0);
@@ -62,8 +72,10 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                             let index = source.index;
                             source.eat();
                             if !source.has_next() {
+                                let source_index = source.index;
                                 return Err(Error::UnexpectedEndOfSource {
-                                    span: index..source.index,
+                                    src,
+                                    span: index..source_index,
                                 });
                             }
                             let esc_c = source.peek();
@@ -88,24 +100,30 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                                 'x' => {
                                     s_value_len += 1;
                                     if !source.has_next() {
+                                        let source_index = source.index;
                                         return Err(Error::UnexpectedEndOfSource {
-                                            span: index..source.index,
+                                            src,
+                                            span: index..source_index,
                                         });
                                     }
                                     let ac = source.peek();
                                     source.eat();
                                     s_value_len += ac.len_utf8();
                                     if !source.has_next() {
+                                        let source_index = source.index;
                                         return Err(Error::UnexpectedEndOfSource {
-                                            span: index..source.index,
+                                            src,
+                                            span: index..source_index,
                                         });
                                     }
                                     let bc = source.peek();
                                     source.eat();
                                     s_value_len += bc.len_utf8();
                                     if !ac.is_ascii_hexdigit() || !bc.is_ascii_hexdigit() {
+                                        let source_index = source.index;
                                         return Err(Error::InvalidStringEscapeCode {
-                                            span: index..source.index,
+                                            src,
+                                            span: index..source_index,
                                         });
                                     }
                                     let s = [ac as u8, bc as u8];
@@ -115,15 +133,19 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                                     let Some(utf_c) =
                                         char::from_u32(u32::from_str_radix(s, 16).expect("Hex str")) else
                                     {
+                                        let source_index = source.index;
                                         return Err(Error::InvalidUtf8 {
-                                            span: index..source.index,
+                                            src,
+                                            span: index..source_index,
                                         });
                                     };
                                     buf.push(utf_c);
                                 }
                                 _ => {
+                                    let source_index = source.index;
                                     return Err(Error::InvalidStringEscapeCode {
-                                        span: index..source.index,
+                                        src,
+                                        span: index..source_index,
                                     });
                                 }
                             }
@@ -137,6 +159,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                 }
                 if !source.has_next() {
                     return Err(Error::UnexpectedEndOfSource {
+                        src,
                         span: s_index..s_value_index + s_value_len,
                     });
                 }
@@ -151,7 +174,13 @@ pub fn tokenize(src: String) -> Result<TokenList> {
             _ => {
                 if c.is_whitespace() {
                     if g_len > 0 {
-                        tokens.push(parse_token(g_index..g_index + g_len, &mut source)?);
+                        let Some(token) = parse_token(g_index..g_index + g_len, &mut source) else {
+                            return Err(Error::IdentStartingWithDigit {
+                                src,
+                                span: g_index..g_index + g_len,
+                            });
+                        };
+                        tokens.push(token);
                     }
                     g_len = 0;
                     g_token = false;
@@ -161,8 +190,10 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                 if g_token {
                     let index = source.index;
                     source.eat();
+                    let source_index = source.index;
                     return Err(Error::NoWhitespaceBetweenTokens {
-                        span: index..source.index,
+                        src,
+                        span: index..source_index,
                     });
                 }
                 if g_len == 0 {
@@ -176,21 +207,21 @@ pub fn tokenize(src: String) -> Result<TokenList> {
     Ok(TokenList { src, tokens })
 }
 
-fn parse_token(span: Span, source: &mut Source) -> Result<Token> {
+fn parse_token(span: Span, source: &mut Source) -> Option<Token> {
     let s = source.str(span.clone());
     if let Some(s) = s.strip_suffix('u') {
         if let Ok(value) = s.parse() {
-            return Ok(Token::UInt { span, value });
+            return Some(Token::UInt { span, value });
         }
     }
     if let Ok(value) = s.parse() {
-        return Ok(Token::Int { span, value });
+        return Some(Token::Int { span, value });
     }
     if let Ok(value) = s.parse() {
-        return Ok(Token::Float { span, value });
+        return Some(Token::Float { span, value });
     }
     if s.chars().next().unwrap().is_ascii_digit() {
-        return Err(Error::IdentStartingWithDigit { span });
+        return None;
     }
-    Ok(Token::Ident { span })
+    Some(Token::Ident { span })
 }

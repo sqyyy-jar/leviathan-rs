@@ -2,7 +2,6 @@ use super::mod_type::assembly::{AssemblyCollectedScope, AssemblyCollectedStatic}
 
 #[derive(Debug)]
 pub struct CollectedModule {
-    pub src: String,
     pub funcs: Vec<CollectedFunction>,
     pub data: CollectedModuleData,
 }
