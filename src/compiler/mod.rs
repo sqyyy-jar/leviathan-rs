@@ -53,11 +53,17 @@ impl CompileTask {
         if module.root.is_empty() {
             return Err(Error::EmptyModule { name: module.name });
         }
-        let Node::Node { span: _, sub_nodes: mod_sub_nodes } = &module.root[0] else {
+        let Node::Node {
+            span: mod_decl_span,
+            sub_nodes: mod_sub_nodes,
+        } = &module.root[0] else
+        {
             panic!("Invalid AST");
         };
         if mod_sub_nodes.len() != 2 {
-            return Err(Error::EmptyModule { name: module.name });
+            return Err(Error::InvalidModuleDeclaration {
+                span: mod_decl_span.clone(),
+            });
         }
         let keyword_node = &mod_sub_nodes[0];
         let ident_node = &mod_sub_nodes[1];

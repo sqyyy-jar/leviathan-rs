@@ -39,7 +39,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                 });
             }
             '"' => {
-                if g_token {
+                if g_len > 0 || g_token {
                     let index = source.index;
                     source.eat();
                     return Err(Error::NoWhitespaceBetweenTokens {
@@ -86,6 +86,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                                     s_value_len += 1;
                                 }
                                 'x' => {
+                                    s_value_len += 1;
                                     if !source.has_next() {
                                         return Err(Error::UnexpectedEndOfSource {
                                             span: index..source.index,
@@ -93,6 +94,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                                     }
                                     let ac = source.peek();
                                     source.eat();
+                                    s_value_len += ac.len_utf8();
                                     if !source.has_next() {
                                         return Err(Error::UnexpectedEndOfSource {
                                             span: index..source.index,
@@ -100,6 +102,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                                     }
                                     let bc = source.peek();
                                     source.eat();
+                                    s_value_len += bc.len_utf8();
                                     if !ac.is_ascii_hexdigit() || !bc.is_ascii_hexdigit() {
                                         return Err(Error::InvalidStringEscapeCode {
                                             span: index..source.index,
