@@ -230,13 +230,60 @@ fn gen_static_intermediary(
 }
 
 fn gen_scope_intermediary(
-    _src: &str,
+    src: &str,
     ir_statics: &mut Vec<IntermediaryStatic>,
     AssemblyCollectedScope { func_index, expr }: AssemblyCollectedScope,
 ) -> Result<IntermediaryFunction> {
     let mut ir = Vec::with_capacity(2);
     match expr {
-        Node::Ident { .. } => todo!(),
+        Node::Ident { span } => {
+            let name = &src[span.clone()];
+            for (index, ir_static) in ir_statics.iter().enumerate() {
+                let Some(static_name) = &ir_static.name else {
+                    continue;
+                };
+                if name != static_name {
+                    continue;
+                }
+                match &ir_static.value {
+                    IntermediaryStaticValue::Int(_)
+                    | IntermediaryStaticValue::UInt(_)
+                    | IntermediaryStaticValue::Float(_) => {
+                        ir.push(Insn::LdStaticAbsAddr {
+                            dst: Reg::R0,
+                            index,
+                        });
+                    }
+                    IntermediaryStaticValue::String(value) => {
+                        ir.push(Insn::LdStaticAbsAddr {
+                            dst: Reg::R0,
+                            index,
+                        });
+                        ir.push(Insn::LdcUInt {
+                            dst: Reg::R1,
+                            value: value.len() as u64,
+                        });
+                    }
+                    IntermediaryStaticValue::Buffer { size } => {
+                        ir.push(Insn::LdStaticAbsAddr {
+                            dst: Reg::R0,
+                            index,
+                        });
+                        ir.push(Insn::LdcUInt {
+                            dst: Reg::R1,
+                            value: *size as u64,
+                        });
+                    }
+                }
+                ir.push(Insn::Ret);
+                return Ok(IntermediaryFunction {
+                    func_index,
+                    ir,
+                    deps: Vec::with_capacity(0),
+                });
+            }
+            Err(Error::UnknownStaticVariable { src: None, span })
+        }
         Node::Int { .. } | Node::UInt { .. } | Node::Float { .. } => {
             match expr {
                 Node::Int { value, .. } => ir.push(Insn::LdcInt {

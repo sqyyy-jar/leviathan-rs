@@ -54,6 +54,10 @@ pub enum Error {
         src: Option<String>,
         span: Span,
     },
+    UnknownStaticVariable {
+        src: Option<String>,
+        span: Span,
+    },
     InvalidCallSignature {
         src: Option<String>,
         span: Span,
@@ -79,6 +83,7 @@ impl Error {
             | Error::DuplicateName { src, .. }
             | Error::UnknownFunc { src, .. }
             | Error::UnknownStaticFunc { src, .. }
+            | Error::UnknownStaticVariable { src, .. }
             | Error::InvalidCallSignature { src, .. }
             | Error::NotInSizeRangeFrom { src, .. } => {
                 *src = Some(source);
@@ -164,6 +169,13 @@ impl Error {
                 span,
             } => {
                 report = span_error_report(filename, span, "This static function is not known");
+                source = Source::from(src);
+            }
+            Error::UnknownStaticVariable {
+                src: Some(src),
+                span,
+            } => {
+                report = span_error_report(filename, span, "This static variable does not exist");
                 source = Source::from(src);
             }
             Error::InvalidCallSignature {
