@@ -1,57 +1,22 @@
-use phf::{phf_map, Map};
+pub mod macros;
+pub mod static_funcs;
 
 use crate::{
     compiler::{
         collecting::{CollectedFunction, CollectedModule, CollectedModuleData},
         error::{Error, Result},
         intermediary::{
-            Insn, IntermediaryFunction, IntermediaryModule, IntermediaryStatic,
-            IntermediaryStaticValue, Reg,
+            Insn, IntermediaryDependencyPath, IntermediaryFunction, IntermediaryModule,
+            IntermediaryStatic, IntermediaryStaticValue, Reg,
         },
+        mod_type::assembly::macros::MACROS,
         ModuleType, UncollectedModule,
     },
     parser::Node,
     util::source::Span,
 };
 
-type StaticFunc<'a> = fn(name: String, span: Span, nodes: Vec<Node>) -> Result<IntermediaryStatic>;
-
-const STATIC_FUNCS: Map<&'static str, StaticFunc> = phf_map! {
-    "buffer" => static_buffer,
-};
-
-fn static_buffer(name: String, span: Span, mut nodes: Vec<Node>) -> Result<IntermediaryStatic> {
-    if nodes.len() != 2 {
-        return Err(Error::InvalidCallSignature { src: None, span });
-    }
-    let size = match nodes.pop().unwrap() {
-        Node::Int { span, value } => {
-            if value < 1 {
-                return Err(Error::NotInSizeRangeFrom {
-                    src: None,
-                    span,
-                    range: 1..,
-                });
-            }
-            value as usize
-        }
-        Node::UInt { span, value } => {
-            if value < 1 {
-                return Err(Error::NotInSizeRangeFrom {
-                    src: None,
-                    span,
-                    range: 1..,
-                });
-            }
-            value as usize
-        }
-        _ => return Err(Error::InvalidCallSignature { src: None, span }),
-    };
-    Ok(IntermediaryStatic {
-        name: Some(name),
-        value: IntermediaryStaticValue::Buffer { size },
-    })
-}
+use self::static_funcs::STATIC_FUNCS;
 
 pub struct Assembly;
 
@@ -234,7 +199,8 @@ fn gen_scope_intermediary(
     ir_statics: &mut Vec<IntermediaryStatic>,
     AssemblyCollectedScope { func_index, expr }: AssemblyCollectedScope,
 ) -> Result<IntermediaryFunction> {
-    let mut ir = Vec::with_capacity(2);
+    let mut ir = Vec::with_capacity(0);
+    let mut deps = Vec::with_capacity(0);
     match expr {
         Node::Ident { span } => {
             let name = &src[span.clone()];
@@ -249,7 +215,7 @@ fn gen_scope_intermediary(
                     IntermediaryStaticValue::Int(_)
                     | IntermediaryStaticValue::UInt(_)
                     | IntermediaryStaticValue::Float(_) => {
-                        ir.push(Insn::LdStaticAbsAddr {
+                        ir.push(Insn::LdStaticValue {
                             dst: Reg::R0,
                             index,
                         });
@@ -329,15 +295,126 @@ fn gen_scope_intermediary(
             })
         }
         Node::Node { span, sub_nodes } => {
-            if sub_nodes.is_empty() {
-                return Err(Error::EmptyNode { src: None, span });
-            }
-            todo!("Add function call/macro expansion");
-            // Ok(IntermediaryFunction {
-            //     func_index,
-            //     ir,
-            //     deps: Vec::with_capacity(0),
-            // })
+            gen_scope_node_intermediary(src, &mut ir, &mut deps, ir_statics, sub_nodes, span, 0)?;
+            Ok(IntermediaryFunction {
+                func_index,
+                ir,
+                deps,
+            })
         }
     }
+}
+
+fn gen_scope_node_intermediary(
+    src: &str,
+    ir: &mut Vec<Insn>,
+    _deps: &mut Vec<IntermediaryDependencyPath>,
+    ir_statics: &mut Vec<IntermediaryStatic>,
+    sub_nodes: Vec<Node>,
+    span: Span,
+    depth: usize,
+) -> Result<()> {
+    if sub_nodes.is_empty() {
+        if depth == 0 {
+            ir.push(Insn::Ret);
+        }
+        return Ok(());
+    }
+    let Node::Ident { span: name_span } = &sub_nodes[0] else {
+        return Err(Error::UnexpectedToken {
+            src: None,
+            span: sub_nodes[0].span(),
+        });
+    };
+    let name = &src[name_span.clone()];
+    match name {
+        "do" => {
+            let mut sub_nodes = sub_nodes.into_iter().peekable();
+            sub_nodes.next().unwrap();
+            while let Some(node) = sub_nodes.next() {
+                match node {
+                    Node::Ident { span } => {
+                        if sub_nodes.peek().is_some() {
+                            return Err(Error::UnexpectedToken { src: None, span });
+                        }
+                        todo!()
+                    }
+                    node @ Node::Int { .. }
+                    | node @ Node::UInt { .. }
+                    | node @ Node::Float { .. } => {
+                        if sub_nodes.peek().is_some() {
+                            return Err(Error::UnexpectedToken {
+                                src: None,
+                                span: node.span(),
+                            });
+                        }
+                        match node {
+                            Node::Int { value, .. } => ir.push(Insn::LdcInt {
+                                dst: Reg::R0,
+                                value,
+                            }),
+                            Node::UInt { value, .. } => ir.push(Insn::LdcUInt {
+                                dst: Reg::R0,
+                                value,
+                            }),
+                            Node::Float { value, .. } => ir.push(Insn::LdcFloat {
+                                dst: Reg::R0,
+                                value,
+                            }),
+                            _ => unreachable!(),
+                        }
+                    }
+                    Node::String { span, value } => {
+                        if sub_nodes.peek().is_some() {
+                            return Err(Error::UnexpectedToken { src: None, span });
+                        }
+                        let len = value.len();
+                        ir_statics.push(IntermediaryStatic {
+                            name: None,
+                            value: IntermediaryStaticValue::String(value),
+                        });
+                        ir.push(Insn::LdStaticAbsAddr {
+                            dst: Reg::R0,
+                            index: ir_statics.len() - 1,
+                        });
+                        ir.push(Insn::LdcUInt {
+                            dst: Reg::R1,
+                            value: len as u64,
+                        });
+                    }
+                    Node::Node { span, sub_nodes } => {
+                        gen_scope_node_intermediary(
+                            src,
+                            ir,
+                            _deps,
+                            ir_statics,
+                            sub_nodes,
+                            span,
+                            depth + 1,
+                        )?;
+                    }
+                }
+            }
+            if depth == 0 {
+                ir.push(Insn::Ret);
+            }
+        }
+        "if" => {
+            todo!()
+        }
+        "while" => {
+            todo!()
+        }
+        _ => {
+            if let Some(macro_) = MACROS.get(name) {
+                (*macro_)(src, ir, _deps, ir_statics, span, sub_nodes)?;
+                if depth == 0 {
+                    ir.push(Insn::Ret);
+                }
+                return Ok(());
+            };
+            todo!()
+        }
+    }
+    Ok(())
 }
