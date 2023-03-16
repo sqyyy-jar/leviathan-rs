@@ -48,7 +48,7 @@ fn static_buffer(name: String, span: Span, mut nodes: Vec<Node>) -> Result<Inter
         _ => return Err(Error::InvalidCallSignature { src: None, span }),
     };
     Ok(IntermediaryStatic {
-        name,
+        name: Some(name),
         value: IntermediaryStaticValue::Buffer { size },
     })
 }
@@ -169,7 +169,7 @@ impl ModuleType for Assembly {
         }
         let mut ir_funcs = Vec::with_capacity(scopes.len());
         for scope in scopes {
-            ir_funcs.push(gen_scope_intermediary(src, scope)?);
+            ir_funcs.push(gen_scope_intermediary(src, &mut ir_statics, scope)?);
         }
         Ok(IntermediaryModule {
             funcs,
@@ -198,19 +198,19 @@ fn gen_static_intermediary(
     match expr {
         Node::Ident { span } => Err(Error::UnexpectedToken { src: None, span }),
         Node::Int { value, .. } => Ok(IntermediaryStatic {
-            name,
+            name: Some(name),
             value: IntermediaryStaticValue::Int(value),
         }),
         Node::UInt { value, .. } => Ok(IntermediaryStatic {
-            name,
+            name: Some(name),
             value: IntermediaryStaticValue::UInt(value),
         }),
         Node::Float { value, .. } => Ok(IntermediaryStatic {
-            name,
+            name: Some(name),
             value: IntermediaryStaticValue::Float(value),
         }),
         Node::String { value, .. } => Ok(IntermediaryStatic {
-            name,
+            name: Some(name),
             value: IntermediaryStaticValue::String(value),
         }),
         Node::Node { span, sub_nodes } => {
@@ -231,6 +231,7 @@ fn gen_static_intermediary(
 
 fn gen_scope_intermediary(
     _src: &str,
+    ir_statics: &mut Vec<IntermediaryStatic>,
     AssemblyCollectedScope { func_index, expr }: AssemblyCollectedScope,
 ) -> Result<IntermediaryFunction> {
     let mut ir = Vec::with_capacity(2);
@@ -259,7 +260,37 @@ fn gen_scope_intermediary(
                 deps: Vec::with_capacity(0),
             })
         }
-        Node::String { .. } => todo!(),
-        Node::Node { .. } => todo!(),
+        Node::String { value, .. } => {
+            let len = value.len();
+            ir_statics.push(IntermediaryStatic {
+                name: None,
+                value: IntermediaryStaticValue::String(value),
+            });
+            ir.push(Insn::LdStaticAbsAddr {
+                dst: Reg::R0,
+                index: ir_statics.len() - 1,
+            });
+            ir.push(Insn::LdcUInt {
+                dst: Reg::R1,
+                value: len as u64,
+            });
+            ir.push(Insn::Ret);
+            Ok(IntermediaryFunction {
+                func_index,
+                ir,
+                deps: Vec::with_capacity(0),
+            })
+        }
+        Node::Node { span, sub_nodes } => {
+            if sub_nodes.is_empty() {
+                return Err(Error::EmptyNode { src: None, span });
+            }
+            todo!("Add function call/macro expansion");
+            // Ok(IntermediaryFunction {
+            //     func_index,
+            //     ir,
+            //     deps: Vec::with_capacity(0),
+            // })
+        }
     }
 }

@@ -9,7 +9,7 @@ pub struct IntermediaryModule {
 
 #[derive(Debug)]
 pub struct IntermediaryStatic {
-    pub name: String,
+    pub name: Option<String>,
     pub value: IntermediaryStaticValue,
 }
 
@@ -37,6 +37,7 @@ pub struct IntermediaryDependencyPath {
 
 #[derive(Debug)]
 pub enum Insn {
+    LdStaticAbsAddr { dst: Reg, index: usize },
     LdcInt { dst: Reg, value: i64 },
     LdcUInt { dst: Reg, value: u64 },
     LdcFloat { dst: Reg, value: f64 },
