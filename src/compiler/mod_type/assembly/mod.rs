@@ -1,3 +1,4 @@
+pub mod insns;
 pub mod macros;
 pub mod static_funcs;
 
@@ -9,7 +10,7 @@ use crate::{
             Insn, IntermediaryDependencyPath, IntermediaryFunction, IntermediaryModule,
             IntermediaryStatic, IntermediaryStaticValue, Reg,
         },
-        mod_type::assembly::macros::MACROS,
+        mod_type::assembly::{insns::INSN_MACROS, macros::MACROS},
         ModuleType, UncollectedModule,
     },
     parser::Node,
@@ -413,6 +414,16 @@ fn gen_scope_node_intermediary(
                 }
                 return Ok(());
             };
+            if let Some(insns) = INSN_MACROS.get(name) {
+                let insn = insns::find(insns, src, span, &sub_nodes)?;
+                if let Some(insn) = insn {
+                    insn.gen(src, ir, sub_nodes)?;
+                    if depth == 0 {
+                        ir.push(Insn::Ret);
+                    }
+                    return Ok(());
+                }
+            }
             todo!()
         }
     }

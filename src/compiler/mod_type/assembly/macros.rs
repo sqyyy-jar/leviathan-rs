@@ -1,6 +1,7 @@
 #![allow(clippy::ptr_arg)]
 
 use phf::{phf_map, Map};
+use urban_common::opcodes::L5_HALT;
 
 use crate::{
     compiler::{
@@ -35,6 +36,6 @@ fn halt(
     if sub_nodes.len() != 1 {
         return Err(Error::InvalidCallSignature { src: None, span });
     }
-    ir.push(Insn::Halt);
+    ir.push(Insn::Raw(L5_HALT));
     Ok(())
 }

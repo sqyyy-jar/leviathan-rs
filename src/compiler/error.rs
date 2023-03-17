@@ -1,4 +1,7 @@
-use std::{ops::RangeFrom, process::exit};
+use std::{
+    ops::{Range, RangeFrom},
+    process::exit,
+};
 
 use ariadne::Source;
 
@@ -67,6 +70,16 @@ pub enum Error {
         span: Span,
         range: RangeFrom<usize>,
     },
+    NotInSizeRange {
+        src: Option<String>,
+        span: Span,
+        range: Range<usize>,
+    },
+    NotInI64Range {
+        src: Option<String>,
+        span: Span,
+        range: Range<i64>,
+    },
 }
 
 impl Error {
@@ -85,7 +98,9 @@ impl Error {
             | Error::UnknownStaticFunc { src, .. }
             | Error::UnknownStaticVariable { src, .. }
             | Error::InvalidCallSignature { src, .. }
-            | Error::NotInSizeRangeFrom { src, .. } => {
+            | Error::NotInSizeRangeFrom { src, .. }
+            | Error::NotInSizeRange { src, .. }
+            | Error::NotInI64Range { src, .. } => {
                 *src = Some(source);
             }
         }
@@ -198,6 +213,30 @@ impl Error {
                     filename,
                     span,
                     &format!("This number must be bigger or equal to {}", range.start),
+                );
+                source = Source::from(src);
+            }
+            Error::NotInSizeRange {
+                src: Some(src),
+                span,
+                range,
+            } => {
+                report = span_error_report(
+                    filename,
+                    span,
+                    &format!("This number must be in range {range:?}"),
+                );
+                source = Source::from(src);
+            }
+            Error::NotInI64Range {
+                src: Some(src),
+                span,
+                range,
+            } => {
+                report = span_error_report(
+                    filename,
+                    span,
+                    &format!("This number must be in range {range:?}"),
                 );
                 source = Source::from(src);
             }

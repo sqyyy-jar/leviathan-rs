@@ -37,13 +37,13 @@ pub struct IntermediaryDependencyPath {
 
 #[derive(Debug)]
 pub enum Insn {
+    Raw(u32),
     LdStaticAbsAddr { dst: Reg, index: usize },
     LdStaticValue { dst: Reg, index: usize },
     LdcInt { dst: Reg, value: i64 },
     LdcUInt { dst: Reg, value: u64 },
     LdcFloat { dst: Reg, value: f64 },
     Ret,
-    Halt,
 }
 
 #[repr(u8)]
