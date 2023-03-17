@@ -1,0 +1,5 @@
+(mod assembly)
+(+scope main (do
+  (mov r1 21u)
+  (mov r2 2u)
+  (mul r0 r1 r2)))
