@@ -1,5 +1,9 @@
 use phf::{phf_map, Map};
-use urban_common::opcodes::{L0_ADD, L2_ADD, L5_HALT};
+use urban_common::opcodes::{
+    L0_ADD, L0_DIV, L0_DIVS, L0_LDR, L0_MOV, L0_MOVS, L0_MUL, L0_REM, L0_REMS, L0_STR, L0_SUB,
+    L1_LDR, L1_STR, L2_ADD, L2_ADDF, L2_DIV, L2_DIVF, L2_DIVS, L2_MUL, L2_MULF, L2_REM, L2_REMS,
+    L2_SUB, L2_SUBF, L3_MOV, L5_HALT,
+};
 
 use crate::{
     compiler::{
@@ -17,6 +21,47 @@ pub const INSN_MACROS: Map<&'static str, &[Op]> = phf_map! {
         Op { b: L0_ADD, c: &[Reg, Reg, U(17)] },
         Op { b: L2_ADD, c: &[Reg, Reg, Reg] },
     ],
+    "sub" => &[
+        Op { b: L0_SUB, c: &[Reg, Reg, U(17)] },
+        Op { b: L2_SUB, c: &[Reg, Reg, Reg] },
+    ],
+    "mul" => &[
+        Op { b: L0_MUL, c: &[Reg, Reg, U(17)] },
+        Op { b: L2_MUL, c: &[Reg, Reg, Reg] },
+    ],
+    "div" => &[
+        Op { b: L0_DIV, c: &[Reg, Reg, U(17)] },
+        Op { b: L2_DIV, c: &[Reg, Reg, Reg] },
+    ],
+    "rem" => &[
+        Op { b: L0_REM, c: &[Reg, Reg, U(17)] },
+        Op { b: L2_REM, c: &[Reg, Reg, Reg] },
+    ],
+    "divs" => &[
+        Op { b: L0_DIVS, c: &[Reg, Reg, U(17)] },
+        Op { b: L2_DIVS, c: &[Reg, Reg, Reg] },
+    ],
+    "rems" => &[
+        Op { b: L0_REMS, c: &[Reg, Reg, U(17)] },
+        Op { b: L2_REMS, c: &[Reg, Reg, Reg] },
+    ],
+    "ldr" => &[
+        Op { b: L0_LDR, c: &[Reg, I(22)] },
+        Op { b: L1_LDR, c: &[Reg, Reg, I(11)] },
+    ],
+    "str" => &[
+        Op { b: L0_STR, c: &[I(22), Reg] },
+        Op { b: L1_STR, c: &[Reg, Reg, I(11)] },
+    ],
+    "mov" => &[
+        Op { b: L0_MOV, c: &[Reg, U(22)] },
+        Op { b: L3_MOV, c: &[Reg, Reg] },
+    ],
+    "movs" => &[Op { b: L0_MOVS, c: &[Reg, I(22)] }],
+    "addf" =>  &[Op { b: L2_ADDF, c: &[Reg, Reg, Reg] }],
+    "subf" => &[Op { b: L2_SUBF, c: &[Reg, Reg, Reg] }],
+    "mulf" => &[Op { b: L2_MULF, c: &[Reg, Reg, Reg] }],
+    "divf" => &[Op { b: L2_DIVF, c: &[Reg, Reg, Reg] }],
     "halt" => &[Op { b: L5_HALT, c: &[] }],
 };
 
