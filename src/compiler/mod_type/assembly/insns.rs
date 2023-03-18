@@ -1,3 +1,5 @@
+use std::mem;
+
 use phf::{phf_map, Map};
 use urban_common::opcodes::{
     L0_ADD, L0_DIV, L0_DIVS, L0_LDR, L0_MOV, L0_MOVS, L0_MUL, L0_REM, L0_REMS, L0_STR, L0_SUB,
@@ -9,6 +11,7 @@ use crate::{
     compiler::{
         error::{Error, Result},
         intermediary::Insn,
+        CompileTask,
     },
     parser::Node,
     util::source::Span,
@@ -131,12 +134,14 @@ impl Component {
     }
 }
 
-pub fn find<'a>(
-    insns: &'a [Op],
-    src: &str,
+pub fn find(
+    task: &mut CompileTask,
+    module_index: usize,
+    insns: &'static [Op],
     _span: Span,
     sub_nodes: &[Node],
-) -> Result<Option<&'a Op>> {
+) -> Result<Option<&'static Op>> {
+    let module = &mut task.modules[module_index];
     let args_len = sub_nodes.len() - 1;
     'outer: for insn in insns {
         if insn.c.len() != args_len {
@@ -150,7 +155,7 @@ pub fn find<'a>(
                     let Node::Ident { span } = node else {
                         continue 'outer;
                     };
-                    let s = &src[span.clone()];
+                    let s = &module.src[span.clone()];
                     if !s.starts_with('r') && !s.starts_with('R') {
                         continue 'outer;
                     }
@@ -169,7 +174,8 @@ pub fn find<'a>(
                     let max_value = (1 << *bits) - 1;
                     if *value > max_value {
                         return Err(Error::NotInSizeRange {
-                            src: None,
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
                             span: span.clone(),
                             range: 0..max_value as usize,
                         });
@@ -183,7 +189,8 @@ pub fn find<'a>(
                     let min_value = -(1 << (*bits - 1));
                     if *value > max_value || *value < min_value {
                         return Err(Error::NotInI64Range {
-                            src: None,
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
                             span: span.clone(),
                             range: min_value..max_value,
                         });

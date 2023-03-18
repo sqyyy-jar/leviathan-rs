@@ -13,6 +13,7 @@ pub struct TokenList {
 #[derive(Debug)]
 pub struct BareModule {
     pub name: String,
+    pub file: String,
     pub src: String,
     pub root: Vec<Node>,
 }

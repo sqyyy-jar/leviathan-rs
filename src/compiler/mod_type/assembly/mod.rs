@@ -2,6 +2,8 @@ pub mod insns;
 pub mod macros;
 pub mod static_funcs;
 
+use std::mem;
+
 use crate::{
     compiler::{
         error::{Error, Result},
@@ -23,6 +25,7 @@ impl ModuleType for Assembly {
         task: &mut CompileTask,
         module_index: usize,
         UncollectedModule { root }: UncollectedModule,
+        main: bool,
     ) -> Result<()> {
         let module = &mut task.modules[module_index];
         let mut nodes = root.into_iter();
@@ -32,11 +35,16 @@ impl ModuleType for Assembly {
                 panic!("Invalid AST");
             };
             if sub_nodes.is_empty() {
-                return Err(Error::EmptyNode { src: None, span });
+                return Err(Error::EmptyNode {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
             }
             let Node::Ident { span: keyword_span } = &sub_nodes[0] else {
                 return Err(Error::UnexpectedToken {
-                    src: None,
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
                     span: sub_nodes[0].span(),
                 });
             };
@@ -44,18 +52,24 @@ impl ModuleType for Assembly {
             match keyword {
                 "static" => {
                     if sub_nodes.len() != 3 {
-                        return Err(Error::InvalidStatement { src: None, span });
+                        return Err(Error::InvalidStatement {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span,
+                        });
                     }
                     let Node::Ident { span: name_span } = &sub_nodes[1] else {
                         return Err(Error::UnexpectedToken {
-                            src: None,
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
                             span: sub_nodes[1].span(),
                         });
                     };
                     let name = &module.src[name_span.clone()];
                     if module.static_indices.contains_key(name) {
                         return Err(Error::DuplicateName {
-                            src: None,
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
                             span: name_span.clone(),
                         });
                     }
@@ -70,18 +84,24 @@ impl ModuleType for Assembly {
                 "-label" | "+label" => {
                     let public = !keyword.starts_with('+');
                     if sub_nodes.len() != 3 {
-                        return Err(Error::InvalidStatement { src: None, span });
+                        return Err(Error::InvalidStatement {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span,
+                        });
                     }
                     let Node::Ident { span: name_span } = &sub_nodes[1] else {
                         return Err(Error::UnexpectedToken {
-                            src: None,
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
                             span: sub_nodes[1].span(),
                         });
                     };
                     let name = &module.src[name_span.clone()];
                     if module.func_indices.contains_key(name) {
                         return Err(Error::DuplicateName {
-                            src: None,
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
                             span: name_span.clone(),
                         });
                     }
@@ -95,14 +115,23 @@ impl ModuleType for Assembly {
                     module
                         .func_indices
                         .insert(name.to_string(), module.funcs.len() - 1);
+                    if main && name == "main" {
+                        task.main = Some((module_index, module.funcs.len() - 1));
+                    }
                 }
                 _ => {
                     return Err(Error::InvalidKeyword {
-                        src: None,
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
                         span: keyword_span.clone(),
                     })
                 }
             }
+        }
+        if main && task.main.is_none() {
+            return Err(Error::NoMainFound {
+                file: mem::take(&mut module.file),
+            });
         }
         Ok(())
     }
@@ -129,7 +158,11 @@ fn gen_static_intermediary(
     let Static { data, used: _ } = &mut module.statics[static_index];
     let StaticData::Collected { nodes } = data else {unreachable!()};
     match nodes.pop().unwrap() {
-        Node::Ident { span } => Err(Error::UnexpectedToken { src: None, span }),
+        Node::Ident { span } => Err(Error::UnexpectedToken {
+            file: mem::take(&mut module.file),
+            src: mem::take(&mut module.src),
+            span,
+        }),
         Node::Int { value, .. } => {
             *data = StaticData::Intermediary {
                 value: IntermediaryStaticValue::Int(value),
@@ -156,21 +189,30 @@ fn gen_static_intermediary(
         }
         Node::Node { span, sub_nodes } => {
             if sub_nodes.is_empty() {
-                return Err(Error::EmptyNode { src: None, span });
+                return Err(Error::EmptyNode {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
             }
             let Node::Ident { span } = &sub_nodes[0] else {
                 return Err(Error::UnexpectedToken {
-                    src: None,
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
                     span
                 });
             };
             let keyword = &module.src[span.clone()];
             let Some(static_func) = STATIC_FUNCS.get(keyword) else {
-                return Err(Error::UnknownStaticFunc { src: None, span: span.clone() });
+                return Err(Error::UnknownStaticFunc {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: span.clone(),
+                });
             };
-            *data = StaticData::Intermediary {
-                value: (*static_func)(span.clone(), sub_nodes)?,
-            };
+            let value = (*static_func)(task, module_index, span.clone(), sub_nodes)?;
+            task.modules[module_index].statics[static_index].data =
+                StaticData::Intermediary { value };
             Ok(())
         }
     }
@@ -196,7 +238,11 @@ fn gen_scope_intermediary(
         Node::Ident { span } => {
             let name = &module.src[span.clone()];
             let Some(static_index) = module.static_indices.get(name) else {
-                return Err(Error::UnknownStaticVariable { src: None, span });
+                return Err(Error::UnknownStaticVariable {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
             };
             let static_ = &mut module.statics[*static_index];
             let StaticData::Intermediary { value } = &static_.data else {unreachable!()};
@@ -290,7 +336,7 @@ fn gen_scope_node_intermediary(
     span: Span,
     depth: usize,
 ) -> Result<()> {
-    let module = &mut task.modules[module_index];
+    let mut module = &mut task.modules[module_index];
     if sub_nodes.is_empty() {
         if depth == 0 {
             ir.push(Insn::Ret);
@@ -299,11 +345,12 @@ fn gen_scope_node_intermediary(
     }
     let Node::Ident { span: name_span } = &sub_nodes[0] else {
         return Err(Error::UnexpectedToken {
-            src: None,
+            file: mem::take(&mut module.file),
+            src: mem::take(&mut module.src),
             span: sub_nodes[0].span(),
         });
     };
-    let name = &module.src[name_span.clone()];
+    let mut name = &module.src[name_span.clone()];
     match name {
         "do" => {
             let mut sub_nodes = sub_nodes.into_iter().peekable();
@@ -312,7 +359,11 @@ fn gen_scope_node_intermediary(
                 match node {
                     Node::Ident { span } => {
                         if sub_nodes.peek().is_some() {
-                            return Err(Error::UnexpectedToken { src: None, span });
+                            return Err(Error::UnexpectedToken {
+                                file: mem::take(&mut module.file),
+                                src: mem::take(&mut module.src),
+                                span,
+                            });
                         }
                         todo!()
                     }
@@ -321,7 +372,8 @@ fn gen_scope_node_intermediary(
                     | node @ Node::Float { .. } => {
                         if sub_nodes.peek().is_some() {
                             return Err(Error::UnexpectedToken {
-                                src: None,
+                                file: mem::take(&mut module.file),
+                                src: mem::take(&mut module.src),
                                 span: node.span(),
                             });
                         }
@@ -343,10 +395,14 @@ fn gen_scope_node_intermediary(
                     }
                     Node::String { span, value } => {
                         if sub_nodes.peek().is_some() {
-                            return Err(Error::UnexpectedToken { src: None, span });
+                            return Err(Error::UnexpectedToken {
+                                file: mem::take(&mut module.file),
+                                src: mem::take(&mut module.src),
+                                span,
+                            });
                         }
                         let len = value.len();
-                        task.modules[module_index].statics.push(Static {
+                        module.statics.push(Static {
                             data: StaticData::Intermediary {
                                 value: IntermediaryStaticValue::String(value),
                             },
@@ -354,7 +410,7 @@ fn gen_scope_node_intermediary(
                         });
                         ir.push(Insn::LdStaticAbsAddr {
                             dst: Reg::R0,
-                            index: task.modules[module_index].statics.len() - 1,
+                            index: module.statics.len() - 1,
                         });
                         ir.push(Insn::LdcUInt {
                             dst: Reg::R1,
@@ -370,6 +426,7 @@ fn gen_scope_node_intermediary(
                             span,
                             depth + 1,
                         )?;
+                        module = &mut task.modules[module_index];
                     }
                 }
             }
@@ -392,7 +449,9 @@ fn gen_scope_node_intermediary(
                 return Ok(());
             };
             if let Some(insns) = INSN_MACROS.get(name) {
-                let insn = insns::find(insns, &module.src, span.clone(), &sub_nodes)?;
+                let insn = insns::find(task, module_index, insns, span, &sub_nodes)?;
+                module = &mut task.modules[module_index];
+                name = &module.src[name_span.clone()];
                 if let Some(insn) = insn {
                     insn.gen(&module.src, ir, sub_nodes)?;
                     if depth == 0 {
@@ -410,7 +469,11 @@ fn gen_scope_node_intermediary(
                     return Ok(());
                 }
             }
-            return Err(Error::UnknownFunc { src: None, span });
+            return Err(Error::UnknownFunc {
+                file: mem::take(&mut module.file),
+                src: mem::take(&mut module.src),
+                span: name_span.clone(),
+            });
         }
     }
     Ok(())

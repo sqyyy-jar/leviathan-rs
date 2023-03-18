@@ -8,7 +8,11 @@ struct StackFrame {
     nodes: Vec<Node>,
 }
 
-pub fn build_ast(name: String, TokenList { src, tokens }: TokenList) -> Result<BareModule> {
+pub fn build_ast(
+    file: String,
+    name: String,
+    TokenList { src, tokens }: TokenList,
+) -> Result<BareModule> {
     let mut stack = vec![StackFrame {
         index: 0,
         nodes: Vec::with_capacity(0),
@@ -85,6 +89,7 @@ pub fn build_ast(name: String, TokenList { src, tokens }: TokenList) -> Result<B
         });
     }
     Ok(BareModule {
+        file,
         name,
         src,
         root: stack.pop().unwrap().nodes,

@@ -1,11 +1,8 @@
 (mod assembly)
-(static a 1)
-(static b 1u)
-(static c 1.0)
-(static d (buffer 128))
-(static e "Hello world!")
-(+scope main (do
-  (add r30 r31 15u)
-  (mov r1 21u)
-  (mov r2 2u)
-  (mul r0 r1 r2)))
+(+label main (do
+  (movs r0 11)
+  (movs r1 31)
+  (add)
+  (halt)))
+(+label add (do
+  (add r0 r0 r1)))

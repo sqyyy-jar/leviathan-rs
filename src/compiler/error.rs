@@ -15,238 +15,223 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     InvalidOperation,
+    NoMainFound {
+        file: String,
+    },
     DuplicateModule {
-        name: Option<String>,
+        file: String,
+        name: String,
     },
     EmptyModule {
-        name: Option<String>,
+        file: String,
+        name: String,
     },
     InvalidModuleDeclaration {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
     },
     UnknownModuleType {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
     },
     EmptyNode {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
     },
     UnexpectedToken {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
     },
     InvalidKeyword {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
     },
     InvalidStatement {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
     },
     DuplicateName {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
     },
     UnknownFunc {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
     },
     UnknownStaticFunc {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
     },
     UnknownStaticVariable {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
     },
     InvalidCallSignature {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
     },
     NotInSizeRangeFrom {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
         range: RangeFrom<usize>,
     },
     NotInSizeRange {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
         range: Range<usize>,
     },
     NotInI64Range {
-        src: Option<String>,
+        file: String,
+        src: String,
         span: Span,
         range: Range<i64>,
     },
 }
 
 impl Error {
-    pub fn complete(mut self, source: String) -> Self {
-        match &mut self {
-            Error::InvalidOperation | Error::DuplicateModule { .. } | Error::EmptyModule { .. } => {
-            }
-            Error::InvalidModuleDeclaration { src, .. }
-            | Error::UnknownModuleType { src, .. }
-            | Error::EmptyNode { src, .. }
-            | Error::UnexpectedToken { src, .. }
-            | Error::InvalidKeyword { src, .. }
-            | Error::InvalidStatement { src, .. }
-            | Error::DuplicateName { src, .. }
-            | Error::UnknownFunc { src, .. }
-            | Error::UnknownStaticFunc { src, .. }
-            | Error::UnknownStaticVariable { src, .. }
-            | Error::InvalidCallSignature { src, .. }
-            | Error::NotInSizeRangeFrom { src, .. }
-            | Error::NotInSizeRange { src, .. }
-            | Error::NotInI64Range { src, .. } => {
-                *src = Some(source);
-            }
-        }
-        self
-    }
-
-    pub fn report(&self, filename: &str) {
+    pub fn report(&self) {
         let report;
         let source;
-        match self {
+        let file: &str = match self {
             Error::InvalidOperation => panic!("InvalidOperation"),
-            Error::DuplicateModule { name: Some(name) } => {
+            Error::NoMainFound { file } => {
+                report = error_report(file, "No main function was found");
+                source = Source::from("");
+                file
+            }
+            Error::DuplicateModule { file, name } => {
                 report = error_report(
-                    filename,
-                    &format!("A module with the name '{name}' already exists",),
+                    file,
+                    &format!("A module with the name '{name}' already exists"),
                 );
                 source = Source::from("");
+                file
             }
-            Error::EmptyModule { name: Some(name) } => {
-                report = error_report(filename, &format!("The module '{name}' is empty"));
+            Error::EmptyModule { name, file } => {
+                report = error_report(file, &format!("The module '{name}' is empty"));
                 source = Source::from("");
+                file
             }
-            Error::InvalidModuleDeclaration {
-                src: Some(src),
-                span,
-            } => {
-                report = span_error_report(filename, span, "This module declaration is not valid");
+            Error::InvalidModuleDeclaration { file, src, span } => {
+                report = span_error_report(file, span, "This module declaration is not valid");
                 source = Source::from(src);
+                file
             }
-            Error::UnknownModuleType {
-                src: Some(src),
-                span,
-            } => {
-                report = span_error_report(filename, span, "This module type is unknown");
+            Error::UnknownModuleType { file, src, span } => {
+                report = span_error_report(file, span, "This module type is unknown");
                 source = Source::from(src);
+                file
             }
-            Error::EmptyNode {
-                src: Some(src),
-                span,
-            } => {
-                report = span_error_report(filename, span, "This node must not be empty");
+            Error::EmptyNode { file, src, span } => {
+                report = span_error_report(file, span, "This node must not be empty");
                 source = Source::from(src);
+                file
             }
-            Error::UnexpectedToken {
-                src: Some(src),
-                span,
-            } => {
-                report = span_error_report(filename, span, "This token is not valid here");
+            Error::UnexpectedToken { file, src, span } => {
+                report = span_error_report(file, span, "This token is not valid here");
                 source = Source::from(src);
+                file
             }
-            Error::InvalidKeyword {
-                src: Some(src),
-                span,
-            } => {
-                report = span_error_report(filename, span, "This keyword not valid");
+            Error::InvalidKeyword { file, src, span } => {
+                report = span_error_report(file, span, "This keyword not valid");
                 source = Source::from(src);
+                file
             }
-            Error::InvalidStatement {
-                src: Some(src),
-                span,
-            } => {
-                report = span_error_report(filename, span, "This statement not valid");
+            Error::InvalidStatement { file, src, span } => {
+                report = span_error_report(file, span, "This statement not valid");
                 source = Source::from(src);
+                file
             }
-            Error::DuplicateName {
-                src: Some(src),
-                span,
-            } => {
-                report = span_error_report(filename, span, "This name is already in use");
+            Error::DuplicateName { file, src, span } => {
+                report = span_error_report(file, span, "This name is already in use");
                 source = Source::from(src);
+                file
             }
-            Error::UnknownFunc {
-                src: Some(src),
-                span,
-            } => {
-                report = span_error_report(filename, span, "This function is not known");
+            Error::UnknownFunc { file, src, span } => {
+                report = span_error_report(file, span, "This function is not known");
                 source = Source::from(src);
+                file
             }
-            Error::UnknownStaticFunc {
-                src: Some(src),
-                span,
-            } => {
-                report = span_error_report(filename, span, "This static function is not known");
+            Error::UnknownStaticFunc { file, src, span } => {
+                report = span_error_report(file, span, "This static function is not known");
                 source = Source::from(src);
+                file
             }
-            Error::UnknownStaticVariable {
-                src: Some(src),
-                span,
-            } => {
-                report = span_error_report(filename, span, "This static variable does not exist");
+            Error::UnknownStaticVariable { file, src, span } => {
+                report = span_error_report(file, span, "This static variable does not exist");
                 source = Source::from(src);
+                file
             }
-            Error::InvalidCallSignature {
-                src: Some(src),
-                span,
-            } => {
+            Error::InvalidCallSignature { file, src, span } => {
                 report = span_error_report(
-                    filename,
+                    file,
                     span,
                     "This call signature does not match the function signature",
                 );
                 source = Source::from(src);
+                file
             }
             Error::NotInSizeRangeFrom {
-                src: Some(src),
+                file,
+                src,
                 span,
                 range,
             } => {
                 report = span_error_report(
-                    filename,
+                    file,
                     span,
                     &format!("This number must be bigger or equal to {}", range.start),
                 );
                 source = Source::from(src);
+                file
             }
             Error::NotInSizeRange {
-                src: Some(src),
+                file,
+                src,
                 span,
                 range,
             } => {
                 report = span_error_report(
-                    filename,
+                    file,
                     span,
                     &format!("This number must be in range {range:?}"),
                 );
                 source = Source::from(src);
+                file
             }
             Error::NotInI64Range {
-                src: Some(src),
+                file,
+                src,
                 span,
                 range,
             } => {
                 report = span_error_report(
-                    filename,
+                    file,
                     span,
                     &format!("This number must be in range {range:?}"),
                 );
                 source = Source::from(src);
+                file
             }
-            _ => panic!("Tried to report incomplete error"),
-        }
-        report.eprint((filename, source)).unwrap();
+        };
+        report.eprint((file, source)).unwrap();
     }
 
-    pub fn abort(&self, filename: &str) -> ! {
-        self.report(filename);
+    pub fn abort(&self) -> ! {
+        self.report();
         exit(1);
     }
 }

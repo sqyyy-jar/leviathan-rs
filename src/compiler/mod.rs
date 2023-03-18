@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, mem};
+use std::{collections::HashMap, fmt::Debug};
 
 use phf::{phf_map, Map};
 
@@ -24,6 +24,7 @@ pub trait ModuleType {
         task: &mut CompileTask,
         module_index: usize,
         module: UncollectedModule,
+        main: bool,
     ) -> Result<()>;
 
     fn gen_intermediary(&self, task: &mut CompileTask, module_index: usize) -> Result<()>;
@@ -34,6 +35,7 @@ pub struct CompileTask {
     pub module_indices: HashMap<String, usize>,
     pub modules: Vec<Module>,
     pub status: Status,
+    pub main: Option<(usize, usize)>,
 }
 
 impl Default for CompileTask {
@@ -42,22 +44,32 @@ impl Default for CompileTask {
             module_indices: HashMap::with_capacity(0),
             modules: Vec::with_capacity(0),
             status: Status::Open,
+            main: None,
         }
     }
 }
 
 impl CompileTask {
-    pub fn include(&mut self, BareModule { name, src, root }: BareModule) -> Result<()> {
-        if self.status != Status::Open {
+    pub fn include(
+        &mut self,
+        BareModule {
+            name,
+            file,
+            src,
+            root,
+        }: BareModule,
+        main: bool,
+    ) -> Result<()> {
+        if self.status != Status::Open || main && self.main.is_some() {
             return Err(Error::InvalidOperation);
         }
         if self.module_indices.contains_key(&name) {
             self.status = Status::Failed;
-            return Err(Error::DuplicateModule { name: Some(name) });
+            return Err(Error::DuplicateModule { file, name });
         }
         if root.is_empty() {
             self.status = Status::Failed;
-            return Err(Error::EmptyModule { name: Some(name) });
+            return Err(Error::EmptyModule { file, name });
         }
         let Node::Node {
             span: mod_decl_span,
@@ -69,7 +81,8 @@ impl CompileTask {
         if mod_sub_nodes.len() != 2 {
             self.status = Status::Failed;
             return Err(Error::InvalidModuleDeclaration {
-                src: Some(src),
+                file,
+                src,
                 span: mod_decl_span.clone(),
             });
         }
@@ -78,7 +91,8 @@ impl CompileTask {
         let Node::Ident { span: keyword_span } = keyword_node else {
             self.status = Status::Failed;
             return Err(Error::InvalidModuleDeclaration {
-                src: Some(src),
+                file,
+                src,
                 span: keyword_node.span(),
             });
         };
@@ -86,30 +100,28 @@ impl CompileTask {
         if keyword != "mod" {
             self.status = Status::Failed;
             return Err(Error::InvalidModuleDeclaration {
-                src: Some(src),
+                file,
+                src,
                 span: keyword_span.clone(),
             });
         }
         let Node::Ident { span: ident_span } = ident_node else {
             self.status = Status::Failed;
             return Err(Error::InvalidModuleDeclaration {
-                src: Some(src),
+                file,
+                src,
                 span: ident_node.span(),
             });
         };
         let ident = &src[ident_span.clone()];
         let Some(mod_type) = MODULE_TYPES.get(ident) else {
             self.status = Status::Failed;
-            return Err(Error::UnknownModuleType { src: Some(src), span: ident_span.clone() });
+            return Err(Error::UnknownModuleType { file, src, span: ident_span.clone() });
         };
         let module_index = self.modules.len();
-        self.modules.push(Module::new(src, *mod_type));
+        self.modules.push(Module::new(file, src, *mod_type));
         self.module_indices.insert(name, self.modules.len() - 1);
-        let module = mod_type.collect(self, module_index, UncollectedModule { root });
-        if let Err(err) = module {
-            self.status = Status::Failed;
-            return Err(err.complete(self.modules.pop().unwrap().src));
-        }
+        mod_type.collect(self, module_index, UncollectedModule { root }, main)?;
         Ok(())
     }
 
@@ -121,17 +133,14 @@ impl CompileTask {
         for i in 0..self.modules.len() {
             let m = &mut self.modules[i];
             let type_ = m.type_;
-            let res = type_.gen_intermediary(self, i);
-            if let Err(err) = res {
-                self.status = Status::Failed;
-                return Err(err.complete(mem::take(&mut self.modules[i].src)));
-            }
+            type_.gen_intermediary(self, i)?;
         }
         Ok(())
     }
 }
 
 pub struct Module {
+    pub file: String,
     pub src: String,
     pub func_indices: HashMap<String, usize>,
     pub funcs: Vec<Func>,
@@ -155,8 +164,9 @@ impl Debug for Module {
 }
 
 impl Module {
-    pub fn new(src: String, type_: &'static dyn ModuleType) -> Self {
+    pub fn new(file: String, src: String, type_: &'static dyn ModuleType) -> Self {
         Self {
+            file,
             src,
             func_indices: HashMap::with_capacity(0),
             funcs: Vec::with_capacity(0),
