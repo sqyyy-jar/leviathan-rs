@@ -204,6 +204,15 @@ pub fn tokenize(src: String) -> Result<TokenList> {
             }
         }
     }
+    if g_len > 0 {
+        let Some(token) = parse_token(g_index..g_index + g_len, &mut source) else {
+            return Err(Error::IdentStartingWithDigit {
+                src,
+                span: g_index..g_index + g_len,
+            });
+        };
+        tokens.push(token);
+    }
     Ok(TokenList { src, tokens })
 }
 
