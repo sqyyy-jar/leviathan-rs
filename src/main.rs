@@ -1,3 +1,5 @@
+use std::fs::File;
+
 use compiler::CompileTask;
 use parser::ast::build_ast;
 
@@ -23,6 +25,9 @@ fn main() {
     let mut task = CompileTask::default();
     task.include(ast, true).unwrap_or_else(|err| err.abort());
     task.include(ast2, false).unwrap_or_else(|err| err.abort());
-    task.gen_intermediary().unwrap_or_else(|err| err.abort());
+    task.compile().unwrap_or_else(|err| err.abort());
+    task.filter().unwrap_or_else(|err| err.abort());
+    let mut file = File::create("out.bin").unwrap();
+    task.assemble(&mut file).unwrap_or_else(|err| err.abort());
     dbg!(task);
 }

@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    io::{Seek, Write},
+};
 
 use phf::{phf_map, Map};
 
@@ -63,12 +67,11 @@ impl CompileTask {
         if self.status != Status::Open || main && self.main.is_some() {
             return Err(Error::InvalidOperation);
         }
+        self.status = Status::Invalid;
         if self.module_indices.contains_key(&name) {
-            self.status = Status::Failed;
             return Err(Error::DuplicateModule { file, name });
         }
         if root.is_empty() {
-            self.status = Status::Failed;
             return Err(Error::EmptyModule { file, name });
         }
         let Node::Node {
@@ -79,7 +82,6 @@ impl CompileTask {
             panic!("Invalid AST");
         };
         if mod_sub_nodes.len() != 2 {
-            self.status = Status::Failed;
             return Err(Error::InvalidModuleDeclaration {
                 file,
                 src,
@@ -89,7 +91,6 @@ impl CompileTask {
         let keyword_node = &mod_sub_nodes[0];
         let ident_node = &mod_sub_nodes[1];
         let Node::Ident { span: keyword_span } = keyword_node else {
-            self.status = Status::Failed;
             return Err(Error::InvalidModuleDeclaration {
                 file,
                 src,
@@ -98,7 +99,6 @@ impl CompileTask {
         };
         let keyword = &src[keyword_span.clone()];
         if keyword != "mod" {
-            self.status = Status::Failed;
             return Err(Error::InvalidModuleDeclaration {
                 file,
                 src,
@@ -106,7 +106,6 @@ impl CompileTask {
             });
         }
         let Node::Ident { span: ident_span } = ident_node else {
-            self.status = Status::Failed;
             return Err(Error::InvalidModuleDeclaration {
                 file,
                 src,
@@ -115,7 +114,6 @@ impl CompileTask {
         };
         let ident = &src[ident_span.clone()];
         let Some(mod_type) = MODULE_TYPES.get(ident) else {
-            self.status = Status::Failed;
             return Err(Error::UnknownModuleType { file, src, span: ident_span.clone() });
         };
         let module_index = self.modules.len();
@@ -125,16 +123,41 @@ impl CompileTask {
         Ok(())
     }
 
-    pub fn gen_intermediary(&mut self) -> Result<()> {
+    pub fn compile(&mut self) -> Result<()> {
         if self.status != Status::Open {
             return Err(Error::InvalidOperation);
         }
-        self.status = Status::Collected;
+        self.status = Status::Invalid;
         for i in 0..self.modules.len() {
             let m = &mut self.modules[i];
             let type_ = m.type_;
             type_.gen_intermediary(self, i)?;
         }
+        self.status = Status::Compiled;
+        Ok(())
+    }
+
+    pub fn filter(&mut self) -> Result<()> {
+        if self.status != Status::Compiled {
+            return Err(Error::InvalidOperation);
+        }
+        self.status = Status::Invalid;
+        assert!(self.main.is_some());
+        let _main = self.main.unwrap();
+        // todo!();
+        self.status = Status::Filtered;
+        Ok(())
+    }
+
+    pub fn assemble(&mut self, _out: &mut (impl Write + Seek)) -> Result<()> {
+        if self.status != Status::Compiled && self.status != Status::Filtered {
+            return Err(Error::InvalidOperation);
+        }
+        self.status = Status::Invalid;
+        assert!(self.main.is_some());
+        let _main = self.main.unwrap();
+        // todo!();
+        self.status = Status::Complete;
         Ok(())
     }
 }
@@ -222,7 +245,7 @@ pub enum Status {
     Compiled,
     Filtered,
     Complete,
-    Failed,
+    Invalid,
 }
 
 #[derive(Debug)]
