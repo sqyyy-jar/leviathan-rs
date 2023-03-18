@@ -6,17 +6,17 @@ use urban_common::opcodes::L5_HALT;
 use crate::{
     compiler::{
         error::{Error, Result},
-        intermediary::{Insn, IntermediaryDependencyPath, IntermediaryStatic},
+        intermediary::Insn,
+        CompileTask,
     },
     parser::Node,
     util::source::Span,
 };
 
 pub type Macro = fn(
-    src: &str,
+    task: &mut CompileTask,
+    module_index: usize,
     ir: &mut Vec<Insn>,
-    deps: &mut Vec<IntermediaryDependencyPath>,
-    ir_statics: &mut Vec<IntermediaryStatic>,
     span: Span,
     sub_nodes: Vec<Node>,
 ) -> Result<()>;
@@ -26,10 +26,9 @@ pub const MACROS: Map<&'static str, Macro> = phf_map! {
 };
 
 fn halt(
-    _src: &str,
+    _task: &mut CompileTask,
+    _module_index: usize,
     ir: &mut Vec<Insn>,
-    _deps: &mut Vec<IntermediaryDependencyPath>,
-    _ir_statics: &mut Vec<IntermediaryStatic>,
     span: Span,
     sub_nodes: Vec<Node>,
 ) -> Result<()> {

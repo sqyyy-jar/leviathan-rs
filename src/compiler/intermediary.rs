@@ -1,18 +1,3 @@
-use super::collecting::CollectedFunction;
-
-#[derive(Debug)]
-pub struct IntermediaryModule {
-    pub funcs: Vec<CollectedFunction>,
-    pub statics: Vec<IntermediaryStatic>,
-    pub ir_funcs: Vec<IntermediaryFunction>,
-}
-
-#[derive(Debug)]
-pub struct IntermediaryStatic {
-    pub name: Option<String>,
-    pub value: IntermediaryStaticValue,
-}
-
 #[derive(Debug)]
 pub enum IntermediaryStaticValue {
     Int(i64),
@@ -20,19 +5,6 @@ pub enum IntermediaryStaticValue {
     Float(f64),
     String(String),
     Buffer { size: usize },
-}
-
-#[derive(Debug)]
-pub struct IntermediaryFunction {
-    pub func_index: usize,
-    pub ir: Vec<Insn>,
-    pub deps: Vec<IntermediaryDependencyPath>,
-}
-
-#[derive(Debug)]
-pub struct IntermediaryDependencyPath {
-    pub module_index: usize,
-    pub func_index: usize,
 }
 
 #[derive(Debug)]

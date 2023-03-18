@@ -3,20 +3,19 @@ use phf::{phf_map, Map};
 use crate::{
     compiler::{
         error::{Error, Result},
-        intermediary::{IntermediaryStatic, IntermediaryStaticValue},
+        intermediary::IntermediaryStaticValue,
     },
     parser::Node,
     util::source::Span,
 };
 
-pub type StaticFunc<'a> =
-    fn(name: String, span: Span, nodes: Vec<Node>) -> Result<IntermediaryStatic>;
+pub type StaticFunc<'a> = fn(span: Span, nodes: Vec<Node>) -> Result<IntermediaryStaticValue>;
 
 pub const STATIC_FUNCS: Map<&'static str, StaticFunc> = phf_map! {
     "buffer" => static_buffer,
 };
 
-fn static_buffer(name: String, span: Span, mut nodes: Vec<Node>) -> Result<IntermediaryStatic> {
+fn static_buffer(span: Span, mut nodes: Vec<Node>) -> Result<IntermediaryStaticValue> {
     if nodes.len() != 2 {
         return Err(Error::InvalidCallSignature { src: None, span });
     }
@@ -43,8 +42,5 @@ fn static_buffer(name: String, span: Span, mut nodes: Vec<Node>) -> Result<Inter
         }
         _ => return Err(Error::InvalidCallSignature { src: None, span }),
     };
-    Ok(IntermediaryStatic {
-        name: Some(name),
-        value: IntermediaryStaticValue::Buffer { size },
-    })
+    Ok(IntermediaryStaticValue::Buffer { size })
 }
