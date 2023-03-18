@@ -101,7 +101,8 @@ impl Op {
                     *value as usize
                 }
             };
-            opc |= (num << offset) as u32;
+            let pattern = (1 << c.len()) - 1;
+            opc |= ((num & pattern) << offset) as u32;
         }
         ir.push(Insn::Raw(opc));
         Ok(())
