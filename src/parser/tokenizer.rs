@@ -14,6 +14,26 @@ pub fn tokenize(name: String, file: String, src: String) -> Result<TokenList> {
     while source.has_next() {
         let c = source.peek();
         match c {
+            '#' | ';' => {
+                if g_len > 0 {
+                    let Some(token) = parse_token(g_index..g_index + g_len, &mut source) else {
+                        return Err(Error::IdentStartingWithDigit {
+                            file,
+                            src,
+                            span: g_index..g_index + g_len,
+                        });
+                    };
+                    tokens.push(token);
+                    g_len = 0;
+                }
+                source.eat();
+                while source.has_next() {
+                    if source.peek() == '\n' {
+                        break;
+                    }
+                    source.eat();
+                }
+            }
             '(' => {
                 let index = source.index;
                 source.eat();
