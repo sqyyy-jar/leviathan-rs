@@ -6,7 +6,7 @@ use urban_common::opcodes::{
     L1_INT, L1_LDR, L1_NCALL, L1_SHL, L1_SHR, L1_SHRS, L1_STR, L1_VCALL, L2_ADD, L2_ADDF, L2_AND,
     L2_DIV, L2_DIVF, L2_DIVS, L2_MUL, L2_MULF, L2_OR, L2_REM, L2_REMS, L2_SHL, L2_SHR, L2_SHRS,
     L2_SUB, L2_SUBF, L2_XOR, L3_FTI, L3_ITF, L3_MOV, L3_NOT, L4_LDBO, L4_LDPC, L4_NCALL, L4_VCALL,
-    L5_HALT, L5_NOP,
+    L5_HALT, L5_NOP, L1_LDRB, L1_LDRH, L1_LDRW, L1_STRB, L1_STRH, L1_STRW,
 };
 
 use crate::{
@@ -75,6 +75,12 @@ pub const INSN_MACROS: Map<&'static str, &[Op]> = phf_map! {
         Op {b: L1_SHRS, c: &[Reg, Reg, U(11)]},
         Op {b: L2_SHRS, c: &[Reg, Reg, Reg]},
     ],
+    "ldrb" => &[Op {b: L1_LDRB, c: &[Reg, Reg, I(11)]}],
+    "ldrh" => &[Op {b: L1_LDRH, c: &[Reg, Reg, I(11)]}],
+    "ldrw" => &[Op {b: L1_LDRW, c: &[Reg, Reg, I(11)]}],
+    "strb" => &[Op {b: L1_STRB, c: &[Reg, Reg, I(11)]}],
+    "strh" => &[Op {b: L1_STRH, c: &[Reg, Reg, I(11)]}],
+    "strw" => &[Op {b: L1_STRW, c: &[Reg, Reg, I(11)]}],
     "int" => &[Op {b: L1_INT, c: &[U(16)]}],
     "ncall" => &[
         Op {b: L1_NCALL, c: &[U(21)]},
