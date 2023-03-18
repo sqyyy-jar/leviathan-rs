@@ -120,18 +120,6 @@ impl ModuleType for Assembly {
     }
 }
 
-#[derive(Debug)]
-pub struct AssemblyCollectedStatic {
-    pub name: String,
-    pub expr: Node,
-}
-
-#[derive(Debug)]
-pub struct AssemblyCollectedScope {
-    pub func_index: usize,
-    pub expr: Node,
-}
-
 fn gen_static_intermediary(
     task: &mut CompileTask,
     module_index: usize,

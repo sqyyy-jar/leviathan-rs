@@ -30,12 +30,6 @@ pub trait ModuleType {
 }
 
 #[derive(Debug)]
-pub struct CollectPacket<'a> {
-    pub src: &'a str,
-    pub module: UncollectedModule,
-}
-
-#[derive(Debug)]
 pub struct CompileTask {
     pub module_indices: HashMap<String, usize>,
     pub modules: Vec<Module>,
