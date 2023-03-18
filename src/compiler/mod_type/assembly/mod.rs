@@ -4,6 +4,8 @@ pub mod static_funcs;
 
 use std::mem;
 
+use urban_common::opcodes::{L0_MOV, L0_MOVS};
+
 use crate::{
     compiler::{
         error::{Error, Result},
@@ -250,29 +252,21 @@ fn gen_scope_intermediary(
                 IntermediaryStaticValue::Int(_)
                 | IntermediaryStaticValue::UInt(_)
                 | IntermediaryStaticValue::Float(_) => {
-                    ir.push(Insn::LdStaticValue {
+                    ir.push(Insn::LoadStatic {
                         dst: Reg::R0,
                         index: *static_index,
                     });
                 }
-                IntermediaryStaticValue::String(value) => {
+                IntermediaryStaticValue::String(_) => {
                     ir.push(Insn::LdStaticAbsAddr {
                         dst: Reg::R0,
                         index: *static_index,
-                    });
-                    ir.push(Insn::LdcUInt {
-                        dst: Reg::R1,
-                        value: value.len() as u64,
                     });
                 }
-                IntermediaryStaticValue::Buffer { size } => {
+                IntermediaryStaticValue::Buffer { size: _ } => {
                     ir.push(Insn::LdStaticAbsAddr {
                         dst: Reg::R0,
                         index: *static_index,
-                    });
-                    ir.push(Insn::LdcUInt {
-                        dst: Reg::R1,
-                        value: *size as u64,
                     });
                 }
             }
@@ -282,18 +276,50 @@ fn gen_scope_intermediary(
         }
         Node::Int { .. } | Node::UInt { .. } | Node::Float { .. } => {
             match expr {
-                Node::Int { value, .. } => ir.push(Insn::LdcInt {
-                    dst: Reg::R0,
-                    value,
-                }),
-                Node::UInt { value, .. } => ir.push(Insn::LdcUInt {
-                    dst: Reg::R0,
-                    value,
-                }),
-                Node::Float { value, .. } => ir.push(Insn::LdcFloat {
-                    dst: Reg::R0,
-                    value,
-                }),
+                Node::Int { value, .. } => {
+                    if (-(1 << 22)..((1 << 22) - 1)).contains(&value) {
+                        ir.push(Insn::Raw(L0_MOVS | value as u32 & ((1 << 22) - 1)));
+                    } else {
+                        module.statics.push(Static {
+                            data: StaticData::Intermediary {
+                                value: IntermediaryStaticValue::Int(value),
+                            },
+                            used: false,
+                        });
+                        ir.push(Insn::LoadStatic {
+                            dst: Reg::R0,
+                            index: module.statics.len() - 1,
+                        });
+                    }
+                }
+                Node::UInt { value, .. } => {
+                    if value < (1 << 22) {
+                        ir.push(Insn::Raw(L0_MOV | value as u32 & ((1 << 22) - 1)))
+                    } else {
+                        module.statics.push(Static {
+                            data: StaticData::Intermediary {
+                                value: IntermediaryStaticValue::UInt(value),
+                            },
+                            used: false,
+                        });
+                        ir.push(Insn::LoadStatic {
+                            dst: Reg::R0,
+                            index: module.statics.len() - 1,
+                        });
+                    }
+                }
+                Node::Float { value, .. } => {
+                    module.statics.push(Static {
+                        data: StaticData::Intermediary {
+                            value: IntermediaryStaticValue::Float(value),
+                        },
+                        used: false,
+                    });
+                    ir.push(Insn::LoadStatic {
+                        dst: Reg::R0,
+                        index: module.statics.len() - 1,
+                    });
+                }
                 _ => unreachable!(),
             }
             ir.push(Insn::Ret);
@@ -301,7 +327,6 @@ fn gen_scope_intermediary(
             Ok(())
         }
         Node::String { value, .. } => {
-            let len = value.len();
             module.statics.push(Static {
                 data: StaticData::Intermediary {
                     value: IntermediaryStaticValue::String(value),
@@ -311,10 +336,6 @@ fn gen_scope_intermediary(
             ir.push(Insn::LdStaticAbsAddr {
                 dst: Reg::R0,
                 index: module.statics.len() - 1,
-            });
-            ir.push(Insn::LdcUInt {
-                dst: Reg::R1,
-                value: len as u64,
             });
             ir.push(Insn::Ret);
             *data = FuncData::Intermediary { ir };
@@ -378,18 +399,50 @@ fn gen_scope_node_intermediary(
                             });
                         }
                         match node {
-                            Node::Int { value, .. } => ir.push(Insn::LdcInt {
-                                dst: Reg::R0,
-                                value,
-                            }),
-                            Node::UInt { value, .. } => ir.push(Insn::LdcUInt {
-                                dst: Reg::R0,
-                                value,
-                            }),
-                            Node::Float { value, .. } => ir.push(Insn::LdcFloat {
-                                dst: Reg::R0,
-                                value,
-                            }),
+                            Node::Int { value, .. } => {
+                                if (-(1 << 22)..((1 << 22) - 1)).contains(&value) {
+                                    ir.push(Insn::Raw(L0_MOVS | value as u32 & ((1 << 22) - 1)));
+                                } else {
+                                    module.statics.push(Static {
+                                        data: StaticData::Intermediary {
+                                            value: IntermediaryStaticValue::Int(value),
+                                        },
+                                        used: false,
+                                    });
+                                    ir.push(Insn::LoadStatic {
+                                        dst: Reg::R0,
+                                        index: module.statics.len() - 1,
+                                    });
+                                }
+                            }
+                            Node::UInt { value, .. } => {
+                                if value < (1 << 22) {
+                                    ir.push(Insn::Raw(L0_MOV | value as u32 & ((1 << 22) - 1)))
+                                } else {
+                                    module.statics.push(Static {
+                                        data: StaticData::Intermediary {
+                                            value: IntermediaryStaticValue::UInt(value),
+                                        },
+                                        used: false,
+                                    });
+                                    ir.push(Insn::LoadStatic {
+                                        dst: Reg::R0,
+                                        index: module.statics.len() - 1,
+                                    });
+                                }
+                            }
+                            Node::Float { value, .. } => {
+                                module.statics.push(Static {
+                                    data: StaticData::Intermediary {
+                                        value: IntermediaryStaticValue::Float(value),
+                                    },
+                                    used: false,
+                                });
+                                ir.push(Insn::LoadStatic {
+                                    dst: Reg::R0,
+                                    index: module.statics.len() - 1,
+                                });
+                            }
                             _ => unreachable!(),
                         }
                     }
@@ -401,7 +454,6 @@ fn gen_scope_node_intermediary(
                                 span,
                             });
                         }
-                        let len = value.len();
                         module.statics.push(Static {
                             data: StaticData::Intermediary {
                                 value: IntermediaryStaticValue::String(value),
@@ -411,10 +463,6 @@ fn gen_scope_node_intermediary(
                         ir.push(Insn::LdStaticAbsAddr {
                             dst: Reg::R0,
                             index: module.statics.len() - 1,
-                        });
-                        ir.push(Insn::LdcUInt {
-                            dst: Reg::R1,
-                            value: len as u64,
                         });
                     }
                     Node::Node { span, sub_nodes } => {

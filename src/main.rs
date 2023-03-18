@@ -29,5 +29,5 @@ fn main() {
     task.filter().unwrap_or_else(|err| err.abort());
     let mut file = File::create("out.bin").unwrap();
     task.assemble(&mut file).unwrap_or_else(|err| err.abort());
-    dbg!(task);
+    println!("Successfully compiled");
 }

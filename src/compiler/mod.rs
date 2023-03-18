@@ -8,7 +8,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use phf::{phf_map, Map};
 use urban_common::{
     binary::EXECUTABLE,
-    opcodes::{L0_BRANCH_L, L0_LDR, L0_MOV, L0_MOVS, L4_BRANCH},
+    opcodes::{L0_BRANCH_L, L0_LDR, L4_BRANCH},
 };
 
 use crate::{
@@ -247,7 +247,7 @@ impl CompileTask {
                             out.write_u32::<LittleEndian>(0)?;
                             ptr += 4;
                         }
-                        Insn::LdStaticValue { dst, index } => {
+                        Insn::LoadStatic { dst, index } => {
                             post_procs.push(PostProc::LdStaticValue {
                                 ptr,
                                 dst: *dst,
@@ -256,21 +256,6 @@ impl CompileTask {
                             });
                             out.write_u32::<LittleEndian>(0)?;
                             ptr += 4;
-                        }
-                        Insn::LdcInt { dst, value } => {
-                            out.write_u32::<LittleEndian>(
-                                L0_MOVS | ((*dst as u32) << 22) | (*value as u32 & ((1 << 22) - 1)),
-                            )?;
-                            ptr += 4;
-                        }
-                        Insn::LdcUInt { dst, value } => {
-                            out.write_u32::<LittleEndian>(
-                                L0_MOV | ((*dst as u32) << 22) | (*value as u32 & ((1 << 22) - 1)),
-                            )?;
-                            ptr += 4;
-                        }
-                        Insn::LdcFloat { dst: _, value: _ } => {
-                            todo!();
                         }
                         Insn::BrLabelLinked {
                             module_index,

@@ -3,8 +3,10 @@ use std::mem;
 use phf::{phf_map, Map};
 use urban_common::opcodes::{
     L0_ADD, L0_DIV, L0_DIVS, L0_LDR, L0_MOV, L0_MOVS, L0_MUL, L0_REM, L0_REMS, L0_STR, L0_SUB,
-    L1_LDR, L1_STR, L2_ADD, L2_ADDF, L2_DIV, L2_DIVF, L2_DIVS, L2_MUL, L2_MULF, L2_REM, L2_REMS,
-    L2_SUB, L2_SUBF, L3_MOV, L5_HALT,
+    L1_INT, L1_LDR, L1_NCALL, L1_SHL, L1_SHR, L1_SHRS, L1_STR, L1_VCALL, L2_ADD, L2_ADDF, L2_AND,
+    L2_DIV, L2_DIVF, L2_DIVS, L2_MUL, L2_MULF, L2_OR, L2_REM, L2_REMS, L2_SHL, L2_SHR, L2_SHRS,
+    L2_SUB, L2_SUBF, L2_XOR, L3_FTI, L3_ITF, L3_MOV, L3_NOT, L4_LDBO, L4_LDPC, L4_NCALL, L4_VCALL,
+    L5_HALT, L5_NOP,
 };
 
 use crate::{
@@ -61,11 +63,42 @@ pub const INSN_MACROS: Map<&'static str, &[Op]> = phf_map! {
         Op { b: L3_MOV, c: &[Reg, Reg] },
     ],
     "movs" => &[Op { b: L0_MOVS, c: &[Reg, I(22)] }],
+    "shl" => &[
+        Op {b: L1_SHL, c: &[Reg, Reg, U(11)]},
+        Op {b: L2_SHL, c: &[Reg, Reg, Reg]},
+    ],
+    "shr" => &[
+        Op {b: L1_SHR, c: &[Reg, Reg, U(11)]},
+        Op {b: L2_SHR, c: &[Reg, Reg, Reg]},
+    ],
+    "shrs" => &[
+        Op {b: L1_SHRS, c: &[Reg, Reg, U(11)]},
+        Op {b: L2_SHRS, c: &[Reg, Reg, Reg]},
+    ],
+    "int" => &[Op {b: L1_INT, c: &[U(16)]}],
+    "ncall" => &[
+        Op {b: L1_NCALL, c: &[U(21)]},
+        Op {b: L4_NCALL, c: &[Reg]},
+    ],
+    "vcall" => &[
+        Op {b: L1_VCALL, c: &[U(21)]},
+        Op {b: L4_VCALL, c: &[Reg]},
+    ],
     "addf" =>  &[Op { b: L2_ADDF, c: &[Reg, Reg, Reg] }],
     "subf" => &[Op { b: L2_SUBF, c: &[Reg, Reg, Reg] }],
     "mulf" => &[Op { b: L2_MULF, c: &[Reg, Reg, Reg] }],
     "divf" => &[Op { b: L2_DIVF, c: &[Reg, Reg, Reg] }],
+    "and" => &[Op { b: L2_AND, c: &[Reg, Reg, Reg] }],
+    "or" => &[Op { b: L2_OR, c: &[Reg, Reg, Reg] }],
+    "xor" => &[Op { b: L2_XOR, c: &[Reg, Reg, Reg] }],
+    "not" => &[Op { b: L3_NOT, c: &[Reg, Reg] }],
+    "fti" => &[Op { b: L3_FTI, c: &[Reg, Reg] }],
+    "itf" => &[Op { b: L3_ITF, c: &[Reg, Reg] }],
+    "ldbo" => &[Op { b: L4_LDBO, c: &[Reg] }],
+    "ldpc" => &[Op { b: L4_LDPC, c: &[Reg] }],
+    "nop" => &[Op { b: L5_NOP, c: &[] }],
     "halt" => &[Op { b: L5_HALT, c: &[] }],
+    "panic" => &[Op {b: 0xFFFF_FFFF, c: &[]}],
 };
 
 #[derive(Debug)]
@@ -77,11 +110,10 @@ pub struct Op {
 impl Op {
     pub fn gen(&self, src: &str, ir: &mut Vec<Insn>, sub_nodes: Vec<Node>) -> Result<()> {
         let mut opc = self.b;
-        let mut offset: usize = self.c.iter().map(|it| it.len()).sum();
+        let mut offset = 0;
         for i in 0..self.c.len() {
             let c = &self.c[i];
             let node = &sub_nodes[i + 1];
-            offset -= c.len();
             let num = match c {
                 Component::Reg => {
                     let Node::Ident { span } = node else {
@@ -106,6 +138,7 @@ impl Op {
             };
             let pattern = (1 << c.len()) - 1;
             opc |= ((num & pattern) << offset) as u32;
+            offset += c.len();
         }
         ir.push(Insn::Raw(opc));
         Ok(())

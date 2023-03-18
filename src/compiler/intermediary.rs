@@ -14,21 +14,9 @@ pub enum Insn {
         dst: Reg,
         index: usize,
     },
-    LdStaticValue {
+    LoadStatic {
         dst: Reg,
         index: usize,
-    },
-    LdcInt {
-        dst: Reg,
-        value: i64,
-    },
-    LdcUInt {
-        dst: Reg,
-        value: u64,
-    },
-    LdcFloat {
-        dst: Reg,
-        value: f64,
     },
     BrLabelLinked {
         module_index: usize,
