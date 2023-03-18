@@ -67,8 +67,8 @@ impl ModuleType for Assembly {
                         .static_indices
                         .insert(name.to_string(), module.statics.len() - 1);
                 }
-                "scope" | "+scope" => {
-                    let public = keyword.starts_with('+');
+                "-label" | "+label" => {
+                    let public = !keyword.starts_with('+');
                     if sub_nodes.len() != 3 {
                         return Err(Error::InvalidStatement { src: None, span });
                     }
@@ -404,7 +404,7 @@ fn gen_scope_node_intermediary(
                 return Ok(());
             };
             if let Some(insns) = INSN_MACROS.get(name) {
-                let insn = insns::find(insns, &module.src, span, &sub_nodes)?;
+                let insn = insns::find(insns, &module.src, span.clone(), &sub_nodes)?;
                 if let Some(insn) = insn {
                     insn.gen(&module.src, ir, sub_nodes)?;
                     if depth == 0 {
@@ -413,7 +413,16 @@ fn gen_scope_node_intermediary(
                     return Ok(());
                 }
             }
-            todo!()
+            if sub_nodes.len() == 1 {
+                if let Some(func_index) = module.func_indices.get(name) {
+                    ir.push(Insn::BrLabelLinked { index: *func_index });
+                    if depth == 0 {
+                        ir.push(Insn::Ret);
+                    }
+                    return Ok(());
+                }
+            }
+            return Err(Error::UnknownFunc { src: None, span });
         }
     }
     Ok(())

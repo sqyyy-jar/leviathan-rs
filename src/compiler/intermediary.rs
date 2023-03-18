@@ -15,6 +15,7 @@ pub enum Insn {
     LdcInt { dst: Reg, value: i64 },
     LdcUInt { dst: Reg, value: u64 },
     LdcFloat { dst: Reg, value: f64 },
+    BrLabelLinked { index: usize },
     Ret,
 }
 
