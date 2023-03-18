@@ -10,17 +10,35 @@ pub enum IntermediaryStaticValue {
 #[derive(Debug)]
 pub enum Insn {
     Raw(u32),
-    LdStaticAbsAddr { dst: Reg, index: usize },
-    LdStaticValue { dst: Reg, index: usize },
-    LdcInt { dst: Reg, value: i64 },
-    LdcUInt { dst: Reg, value: u64 },
-    LdcFloat { dst: Reg, value: f64 },
-    BrLabelLinked { index: usize },
+    LdStaticAbsAddr {
+        dst: Reg,
+        index: usize,
+    },
+    LdStaticValue {
+        dst: Reg,
+        index: usize,
+    },
+    LdcInt {
+        dst: Reg,
+        value: i64,
+    },
+    LdcUInt {
+        dst: Reg,
+        value: u64,
+    },
+    LdcFloat {
+        dst: Reg,
+        value: f64,
+    },
+    BrLabelLinked {
+        module_index: usize,
+        func_index: usize,
+    },
     Ret,
 }
 
 #[repr(u8)]
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Reg {
     R0,
     R1,

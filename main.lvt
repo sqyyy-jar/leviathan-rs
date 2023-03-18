@@ -1,4 +1,5 @@
 (mod assembly)
+(static _ (buffer 1))
 (+label main (do
   (movs r0 11)
   (movs r1 31)

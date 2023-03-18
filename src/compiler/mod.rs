@@ -1,16 +1,24 @@
 use std::{
     collections::HashMap,
     fmt::Debug,
-    io::{Seek, Write},
+    io::{Seek, SeekFrom, Write},
 };
 
+use byteorder::{LittleEndian, WriteBytesExt};
 use phf::{phf_map, Map};
+use urban_common::{
+    binary::EXECUTABLE,
+    opcodes::{L0_BRANCH_L, L0_LDR, L0_MOV, L0_MOVS, L4_BRANCH},
+};
 
-use crate::parser::{BareModule, Node};
+use crate::{
+    parser::{BareModule, Node},
+    util::{align, alignment},
+};
 
 use self::{
     error::{Error, Result},
-    intermediary::{Insn, IntermediaryStaticValue},
+    intermediary::{Insn, IntermediaryStaticValue, Reg},
     mod_type::assembly::Assembly,
 };
 
@@ -120,6 +128,7 @@ impl CompileTask {
         self.modules.push(Module::new(file, src, *mod_type));
         self.module_indices.insert(name, self.modules.len() - 1);
         mod_type.collect(self, module_index, UncollectedModule { root }, main)?;
+        self.status = Status::Open;
         Ok(())
     }
 
@@ -144,19 +153,198 @@ impl CompileTask {
         self.status = Status::Invalid;
         assert!(self.main.is_some());
         let _main = self.main.unwrap();
+        for module in &mut self.modules {
+            module.used = true;
+            for static_ in &mut module.statics {
+                static_.used = true;
+            }
+            for func in &mut module.funcs {
+                func.used = true;
+            }
+        }
         // todo!();
         self.status = Status::Filtered;
         Ok(())
     }
 
-    pub fn assemble(&mut self, _out: &mut (impl Write + Seek)) -> Result<()> {
+    pub fn assemble(&mut self, out: &mut (impl Write + Seek)) -> Result<()> {
         if self.status != Status::Compiled && self.status != Status::Filtered {
             return Err(Error::InvalidOperation);
         }
         self.status = Status::Invalid;
         assert!(self.main.is_some());
-        let _main = self.main.unwrap();
-        // todo!();
+        let main = self.main.unwrap();
+        // Magic
+        out.write_all(b"\0urb")?;
+        // Flags
+        out.write_u32::<LittleEndian>(EXECUTABLE)?;
+        // Entrypoint offset
+        out.write_u64::<LittleEndian>(0)?;
+        let mut ptr = 0;
+        let mut post_procs = Vec::with_capacity(0);
+        let mut modules = HashMap::with_capacity(0);
+        for (i, module) in self.modules.iter().enumerate() {
+            if !module.used {
+                continue;
+            }
+            let mut statics = HashMap::with_capacity(0);
+            let mut funcs = HashMap::with_capacity(0);
+            for (i, static_) in module.statics.iter().enumerate() {
+                if !static_.used {
+                    continue;
+                }
+                statics.insert(i, ptr);
+                let StaticData::Intermediary { value } = &static_.data else {unreachable!()};
+                match value {
+                    IntermediaryStaticValue::Int(value) => {
+                        out.write_i64::<LittleEndian>(*value)?;
+                        ptr += 8;
+                    }
+                    IntermediaryStaticValue::UInt(value) => {
+                        out.write_u64::<LittleEndian>(*value)?;
+                        ptr += 8;
+                    }
+                    IntermediaryStaticValue::Float(value) => {
+                        out.write_f64::<LittleEndian>(*value)?;
+                        ptr += 8;
+                    }
+                    IntermediaryStaticValue::String(value) => {
+                        out.write_all(value.as_bytes())?;
+                        out.write_u8(0)?;
+                        ptr += value.len() + 1;
+                        for _ in 0..alignment(value.len() + 1, 4) {
+                            out.write_u8(0)?;
+                            ptr += 1;
+                        }
+                    }
+                    IntermediaryStaticValue::Buffer { size } => {
+                        for _ in 0..align(*size, 4) {
+                            out.write_u8(0)?;
+                            ptr += 1;
+                        }
+                    }
+                }
+            }
+            for (j, func) in module.funcs.iter().enumerate() {
+                if !func.used {
+                    continue;
+                }
+                funcs.insert(j, ptr);
+                let FuncData::Intermediary { ir } = &func.data else {unreachable!()};
+                for insn in ir {
+                    match insn {
+                        Insn::Raw(opc) => {
+                            out.write_u32::<LittleEndian>(*opc)?;
+                            ptr += 4;
+                        }
+                        Insn::LdStaticAbsAddr { dst, index } => {
+                            post_procs.push(PostProc::LdStaticAbsAddr {
+                                ptr,
+                                dst: *dst,
+                                module_index: i,
+                                static_index: *index,
+                            });
+                            out.write_u32::<LittleEndian>(0)?;
+                            ptr += 4;
+                        }
+                        Insn::LdStaticValue { dst, index } => {
+                            post_procs.push(PostProc::LdStaticValue {
+                                ptr,
+                                dst: *dst,
+                                module_index: i,
+                                static_index: *index,
+                            });
+                            out.write_u32::<LittleEndian>(0)?;
+                            ptr += 4;
+                        }
+                        Insn::LdcInt { dst, value } => {
+                            out.write_u32::<LittleEndian>(
+                                L0_MOVS | ((*dst as u32) << 22) | (*value as u32 & ((1 << 22) - 1)),
+                            )?;
+                            ptr += 4;
+                        }
+                        Insn::LdcUInt { dst, value } => {
+                            out.write_u32::<LittleEndian>(
+                                L0_MOV | ((*dst as u32) << 22) | (*value as u32 & ((1 << 22) - 1)),
+                            )?;
+                            ptr += 4;
+                        }
+                        Insn::LdcFloat { dst: _, value: _ } => {
+                            todo!();
+                        }
+                        Insn::BrLabelLinked {
+                            module_index,
+                            func_index,
+                        } => {
+                            post_procs.push(PostProc::BrLabelLinked {
+                                ptr,
+                                module_index: *module_index,
+                                func_index: *func_index,
+                            });
+                            out.write_u32::<LittleEndian>(0)?;
+                            ptr += 4;
+                        }
+                        Insn::Ret => {
+                            out.write_u32::<LittleEndian>(L4_BRANCH | 30)?;
+                            ptr += 4;
+                        }
+                    }
+                }
+            }
+            modules.insert(i, (statics, funcs));
+        }
+        let main_offset = modules[&main.0].1[&main.1];
+        out.seek(SeekFrom::Start(8))?;
+        out.write_u64::<LittleEndian>(main_offset as u64)?;
+        for post_proc in post_procs {
+            match post_proc {
+                PostProc::LdStaticAbsAddr {
+                    ptr,
+                    dst: _,
+                    module_index: _,
+                    static_index: _,
+                } => {
+                    out.seek(SeekFrom::Start(16 + ptr as u64))?;
+                    todo!()
+                }
+                PostProc::LdStaticValue {
+                    ptr,
+                    dst,
+                    module_index,
+                    static_index,
+                } => {
+                    out.seek(SeekFrom::Start(16 + ptr as u64))?;
+                    let StaticData::Intermediary { value } =
+                        &self.modules[module_index].statics[static_index].data else
+                    {
+                        unreachable!()
+                    };
+                    match value {
+                        IntermediaryStaticValue::Int(_)
+                        | IntermediaryStaticValue::UInt(_)
+                        | IntermediaryStaticValue::Float(_) => {
+                            let static_ptr = modules[&module_index].0[&static_index] as isize;
+                            let offset = (static_ptr - ptr as isize) / 4;
+                            out.write_u32::<LittleEndian>(
+                                L0_LDR | ((dst as u32) << 22) | (offset as u32 & ((1 << 22) - 1)),
+                            )?;
+                        }
+                        IntermediaryStaticValue::String(_) => todo!("Load string"),
+                        IntermediaryStaticValue::Buffer { size: _ } => todo!("Load buffer"),
+                    }
+                }
+                PostProc::BrLabelLinked {
+                    ptr,
+                    module_index,
+                    func_index,
+                } => {
+                    out.seek(SeekFrom::Start(16 + ptr as u64))?;
+                    let func_ptr = modules[&module_index].1[&func_index] as isize;
+                    let offset = (func_ptr - ptr as isize) / 4;
+                    out.write_u32::<LittleEndian>(L0_BRANCH_L | (offset as u32 & ((1 << 27) - 1)))?;
+                }
+            }
+        }
         self.status = Status::Complete;
         Ok(())
     }
@@ -176,6 +364,7 @@ pub struct Module {
 impl Debug for Module {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Module")
+            .field("file", &self.file)
             .field("src", &self.src)
             .field("func_indices", &self.func_indices)
             .field("funcs", &self.funcs)
@@ -251,4 +440,24 @@ pub enum Status {
 #[derive(Debug)]
 pub struct UncollectedModule {
     pub root: Vec<Node>,
+}
+
+pub enum PostProc {
+    LdStaticAbsAddr {
+        ptr: usize,
+        dst: Reg,
+        module_index: usize,
+        static_index: usize,
+    },
+    LdStaticValue {
+        ptr: usize,
+        dst: Reg,
+        module_index: usize,
+        static_index: usize,
+    },
+    BrLabelLinked {
+        ptr: usize,
+        module_index: usize,
+        func_index: usize,
+    },
 }

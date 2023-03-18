@@ -82,7 +82,7 @@ impl ModuleType for Assembly {
                         .insert(name.to_string(), module.statics.len() - 1);
                 }
                 "-label" | "+label" => {
-                    let public = !keyword.starts_with('+');
+                    let public = keyword.starts_with('+');
                     if sub_nodes.len() != 3 {
                         return Err(Error::InvalidStatement {
                             file: mem::take(&mut module.file),
@@ -462,7 +462,10 @@ fn gen_scope_node_intermediary(
             }
             if sub_nodes.len() == 1 {
                 if let Some(func_index) = module.func_indices.get(name) {
-                    ir.push(Insn::BrLabelLinked { index: *func_index });
+                    ir.push(Insn::BrLabelLinked {
+                        module_index,
+                        func_index: *func_index,
+                    });
                     if depth == 0 {
                         ir.push(Insn::Ret);
                     }

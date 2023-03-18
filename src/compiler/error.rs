@@ -99,6 +99,13 @@ pub enum Error {
         span: Span,
         range: Range<i64>,
     },
+    IoError(std::io::Error),
+}
+
+impl From<std::io::Error> for Error {
+    fn from(value: std::io::Error) -> Self {
+        Self::IoError(value)
+    }
 }
 
 impl Error {
@@ -225,6 +232,11 @@ impl Error {
                 );
                 source = Source::from(src);
                 file
+            }
+            Error::IoError(err) => {
+                report = error_report("", &format!("I/O: {err}"));
+                source = Source::from("");
+                ""
             }
         };
         report.eprint((file, source)).unwrap();
