@@ -6,6 +6,8 @@ pub mod tokenizer;
 
 #[derive(Debug)]
 pub struct TokenList {
+    pub file: String,
+    pub name: String,
     pub src: String,
     pub tokens: Vec<Token>,
 }

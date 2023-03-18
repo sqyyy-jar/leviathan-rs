@@ -9,9 +9,12 @@ struct StackFrame {
 }
 
 pub fn build_ast(
-    file: String,
-    name: String,
-    TokenList { src, tokens }: TokenList,
+    TokenList {
+        name,
+        file,
+        src,
+        tokens,
+    }: TokenList,
 ) -> Result<BareModule> {
     let mut stack = vec![StackFrame {
         index: 0,
@@ -25,7 +28,7 @@ pub fn build_ast(
             }),
             Token::RightParen { span } => {
                 if stack.len() < 2 {
-                    return Err(Error::IllegalTokenAtRootLevel { src, span });
+                    return Err(Error::IllegalTokenAtRootLevel { file, src, span });
                 }
                 let last = stack.pop().unwrap();
                 stack.last_mut().unwrap().nodes.push(Node::Node {
@@ -35,13 +38,13 @@ pub fn build_ast(
             }
             Token::Ident { span } => {
                 if stack.len() < 2 {
-                    return Err(Error::IllegalTokenAtRootLevel { src, span });
+                    return Err(Error::IllegalTokenAtRootLevel { file, src, span });
                 }
                 stack.last_mut().unwrap().nodes.push(Node::Ident { span });
             }
             Token::Int { span, value } => {
                 if stack.len() < 2 {
-                    return Err(Error::IllegalTokenAtRootLevel { src, span });
+                    return Err(Error::IllegalTokenAtRootLevel { file, src, span });
                 }
                 stack
                     .last_mut()
@@ -51,7 +54,7 @@ pub fn build_ast(
             }
             Token::UInt { span, value } => {
                 if stack.len() < 2 {
-                    return Err(Error::IllegalTokenAtRootLevel { src, span });
+                    return Err(Error::IllegalTokenAtRootLevel { file, src, span });
                 }
                 stack
                     .last_mut()
@@ -61,7 +64,7 @@ pub fn build_ast(
             }
             Token::Float { span, value } => {
                 if stack.len() < 2 {
-                    return Err(Error::IllegalTokenAtRootLevel { src, span });
+                    return Err(Error::IllegalTokenAtRootLevel { file, src, span });
                 }
                 stack
                     .last_mut()
@@ -71,7 +74,7 @@ pub fn build_ast(
             }
             Token::String { span, value } => {
                 if stack.len() < 2 {
-                    return Err(Error::IllegalTokenAtRootLevel { src, span });
+                    return Err(Error::IllegalTokenAtRootLevel { file, src, span });
                 }
                 stack
                     .last_mut()
@@ -84,6 +87,7 @@ pub fn build_ast(
     if stack.len() != 1 {
         let last = stack.pop().unwrap();
         return Err(Error::UnclosedParenthesis {
+            file,
             src,
             span: last.index..last.index + 1,
         });

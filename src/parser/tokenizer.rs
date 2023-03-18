@@ -5,7 +5,7 @@ use super::{
     Token, TokenList,
 };
 
-pub fn tokenize(src: String) -> Result<TokenList> {
+pub fn tokenize(name: String, file: String, src: String) -> Result<TokenList> {
     let mut source = Source::new(&src);
     let mut tokens = Vec::new();
     let mut g_index = 0;
@@ -20,6 +20,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                 if g_len > 0 || g_token {
                     let source_index = source.index;
                     return Err(Error::NoWhitespaceBetweenTokens {
+                        file,
                         src,
                         span: index..source_index,
                     });
@@ -33,6 +34,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                 if g_len > 0 {
                     let Some(token) = parse_token(g_index..g_index + g_len, &mut source) else {
                         return Err(Error::IdentStartingWithDigit {
+                            file,
                             src,
                             span: g_index..g_index + g_len,
                         });
@@ -52,6 +54,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                     source.eat();
                     let source_index = source.index;
                     return Err(Error::NoWhitespaceBetweenTokens {
+                        file,
                         src,
                         span: index..source_index,
                     });
@@ -74,6 +77,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                             if !source.has_next() {
                                 let source_index = source.index;
                                 return Err(Error::UnexpectedEndOfSource {
+                                    file,
                                     src,
                                     span: index..source_index,
                                 });
@@ -102,6 +106,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                                     if !source.has_next() {
                                         let source_index = source.index;
                                         return Err(Error::UnexpectedEndOfSource {
+                                            file,
                                             src,
                                             span: index..source_index,
                                         });
@@ -112,6 +117,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                                     if !source.has_next() {
                                         let source_index = source.index;
                                         return Err(Error::UnexpectedEndOfSource {
+                                            file,
                                             src,
                                             span: index..source_index,
                                         });
@@ -122,6 +128,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                                     if !ac.is_ascii_hexdigit() || !bc.is_ascii_hexdigit() {
                                         let source_index = source.index;
                                         return Err(Error::InvalidStringEscapeCode {
+                                            file,
                                             src,
                                             span: index..source_index,
                                         });
@@ -135,6 +142,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                                     {
                                         let source_index = source.index;
                                         return Err(Error::InvalidUtf8 {
+                                            file,
                                             src,
                                             span: index..source_index,
                                         });
@@ -144,6 +152,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                                 _ => {
                                     let source_index = source.index;
                                     return Err(Error::InvalidStringEscapeCode {
+                                        file,
                                         src,
                                         span: index..source_index,
                                     });
@@ -159,6 +168,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                 }
                 if !source.has_next() {
                     return Err(Error::UnexpectedEndOfSource {
+                        file,
                         src,
                         span: s_index..s_value_index + s_value_len,
                     });
@@ -176,6 +186,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                     if g_len > 0 {
                         let Some(token) = parse_token(g_index..g_index + g_len, &mut source) else {
                             return Err(Error::IdentStartingWithDigit {
+                                file,
                                 src,
                                 span: g_index..g_index + g_len,
                             });
@@ -192,6 +203,7 @@ pub fn tokenize(src: String) -> Result<TokenList> {
                     source.eat();
                     let source_index = source.index;
                     return Err(Error::NoWhitespaceBetweenTokens {
+                        file,
                         src,
                         span: index..source_index,
                     });
@@ -207,13 +219,19 @@ pub fn tokenize(src: String) -> Result<TokenList> {
     if g_len > 0 {
         let Some(token) = parse_token(g_index..g_index + g_len, &mut source) else {
             return Err(Error::IdentStartingWithDigit {
+                file,
                 src,
                 span: g_index..g_index + g_len,
             });
         };
         tokens.push(token);
     }
-    Ok(TokenList { src, tokens })
+    Ok(TokenList {
+        name,
+        file,
+        src,
+        tokens,
+    })
 }
 
 fn parse_token(span: Span, source: &mut Source) -> Option<Token> {

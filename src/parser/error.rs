@@ -8,59 +8,90 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
-    IdentStartingWithDigit { src: String, span: Span },
-    NoWhitespaceBetweenTokens { src: String, span: Span },
-    UnexpectedEndOfSource { src: String, span: Span },
-    InvalidStringEscapeCode { src: String, span: Span },
-    IllegalTokenAtRootLevel { src: String, span: Span },
-    UnclosedParenthesis { src: String, span: Span },
-    InvalidUtf8 { src: String, span: Span },
+    IdentStartingWithDigit {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    NoWhitespaceBetweenTokens {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    UnexpectedEndOfSource {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    InvalidStringEscapeCode {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    IllegalTokenAtRootLevel {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    UnclosedParenthesis {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    InvalidUtf8 {
+        file: String,
+        src: String,
+        span: Span,
+    },
 }
 
 impl Error {
-    pub fn report(&self, filename: &str) {
+    pub fn report(&self) {
         let report;
-        let src = match self {
-            Error::IdentStartingWithDigit { src, span } => {
+        let source;
+        let file: &str = match self {
+            Error::IdentStartingWithDigit { file, src, span } => {
+                report = span_error_report(file, span, "Identifiers cannot start with a digit");
+                source = Source::from(src);
+                file
+            }
+            Error::NoWhitespaceBetweenTokens { file, src, span } => {
+                report = span_error_report(file, span, "There must be whitespace between token");
+                source = Source::from(src);
+                file
+            }
+            Error::UnexpectedEndOfSource { file, src, span } => {
+                report = span_error_report(file, span, "The code is not allowed to end here");
+                source = Source::from(src);
+                file
+            }
+            Error::InvalidStringEscapeCode { file, src, span } => {
+                report = span_error_report(file, span, "This escape code is not valid");
+                source = Source::from(src);
+                file
+            }
+            Error::IllegalTokenAtRootLevel { file, src, span } => {
                 report =
-                    span_error_report(filename, span, "Identifiers cannot start with a digit");
-                src
+                    span_error_report(file, span, "This token is not allowed on the root-level");
+                source = Source::from(src);
+                file
             }
-            Error::NoWhitespaceBetweenTokens { src, span } => {
-                report =
-                    span_error_report(filename, span, "There must be whitespace between token");
-                src
+            Error::UnclosedParenthesis { file, src, span } => {
+                report = span_error_report(file, span, "This parenthesis must be closed");
+                source = Source::from(src);
+                file
             }
-            Error::UnexpectedEndOfSource { src, span } => {
-                report = span_error_report(filename, span, "The code is not allowed to end here");
-                src
-            }
-            Error::InvalidStringEscapeCode { src, span } => {
-                report = span_error_report(filename, span, "This escape code is not valid");
-                src
-            }
-            Error::IllegalTokenAtRootLevel { src, span } => {
-                report = span_error_report(
-                    filename,
-                    span,
-                    "This token is not allowed on the root-level",
-                );
-                src
-            }
-            Error::UnclosedParenthesis { src, span } => {
-                report = span_error_report(filename, span, "This parenthesis must be closed");
-                src
-            }
-            Error::InvalidUtf8 { src, span } => {
-                report = span_error_report(filename, span, "This is invalid Utf8");
-                src
+            Error::InvalidUtf8 { file, src, span } => {
+                report = span_error_report(file, span, "This is invalid Utf8");
+                source = Source::from(src);
+                file
             }
         };
-        report.eprint((filename, Source::from(src))).unwrap();
+        report.eprint((file, source)).unwrap();
     }
 
-    pub fn abort(&self, filename: &str) -> ! {
-        self.report(filename);
+    pub fn abort(&self) -> ! {
+        self.report();
         exit(1);
     }
 }
