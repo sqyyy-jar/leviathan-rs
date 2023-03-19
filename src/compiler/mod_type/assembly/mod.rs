@@ -721,6 +721,37 @@ fn gen_scope_node_intermediary(
                 ir.push(Insn::Ret);
             }
         }
+        "ref" => {
+            if sub_nodes.len() != 2 {
+                return Err(Error::InvalidStatement {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            }
+            let Node::Ident { span: static_span } = &sub_nodes[1] else {
+                return Err(Error::UnexpectedToken {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: sub_nodes[1].span(),
+                });
+            };
+            let static_ = &module.src[static_span.clone()];
+            let Some(static_) = module.static_indices.get(static_) else {
+                return Err(Error::UnknownStaticVariable {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: static_span.clone(),
+                });
+            };
+            ir.push(Insn::LdStaticAbsAddr {
+                dst: Reg::R0,
+                index: *static_,
+            });
+            if depth == 0 {
+                ir.push(Insn::Ret);
+            }
+        }
         _ => {
             if let Some(macro_) = MACROS.get(name) {
                 (*macro_)(task, module_index, ir, span, sub_nodes)?;

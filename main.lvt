@@ -6,7 +6,7 @@ I am interested in Rust and am currently writing my own programming language.
 ")
 
 (+label main (do
-  (ldbo r0) ; &a
+  (ref a)
   (puts)
   (halt)
 ))

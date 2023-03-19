@@ -9,8 +9,8 @@ use phf::{phf_map, Map};
 use urban_common::{
     binary::EXECUTABLE,
     opcodes::{
-        L0_BRANCH, L0_BRANCH_EQ, L0_BRANCH_GE, L0_BRANCH_GT, L0_BRANCH_L, L0_BRANCH_LE,
-        L0_BRANCH_LT, L0_BRANCH_NE, L0_BRANCH_NZ, L0_BRANCH_ZR, L0_LDR, L4_BRANCH,
+        L0_ADD, L0_BRANCH, L0_BRANCH_EQ, L0_BRANCH_GE, L0_BRANCH_GT, L0_BRANCH_L, L0_BRANCH_LE,
+        L0_BRANCH_LT, L0_BRANCH_NE, L0_BRANCH_NZ, L0_BRANCH_ZR, L0_LDR, L4_BRANCH, L4_LDBO,
     },
 };
 
@@ -243,14 +243,20 @@ impl CompileTask {
                             ptr += 4;
                         }
                         Insn::LdStaticAbsAddr { dst, index } => {
-                            post_procs.push(PostProc::LdStaticAbsAddr {
-                                ptr,
-                                dst: *dst,
-                                module_index: i,
-                                static_index: *index,
-                            });
-                            out.write_u32::<LittleEndian>(0)?;
+                            if i != 0 || *index != 0 {
+                                post_procs.push(PostProc::LdStaticAbsAddr {
+                                    ptr,
+                                    dst: *dst,
+                                    module_index: i,
+                                    static_index: *index,
+                                });
+                            }
+                            out.write_u32::<LittleEndian>(L4_LDBO)?;
                             ptr += 4;
+                            if i != 0 || *index != 0 {
+                                out.write_u32::<LittleEndian>(0)?;
+                                ptr += 4;
+                            }
                         }
                         Insn::LoadStatic { dst, index } => {
                             post_procs.push(PostProc::LdStaticValue {
@@ -448,12 +454,18 @@ impl CompileTask {
             match post_proc {
                 PostProc::LdStaticAbsAddr {
                     ptr,
-                    dst: _,
-                    module_index: _,
-                    static_index: _,
+                    dst,
+                    module_index,
+                    static_index,
                 } => {
-                    out.seek(SeekFrom::Start(16 + ptr as u64))?;
-                    todo!()
+                    out.seek(SeekFrom::Start(16 + 4 + ptr as u64))?;
+                    let static_ptr = modules[&module_index].0[&static_index];
+                    out.write_u32::<LittleEndian>(
+                        L0_ADD
+                            | dst as u32
+                            | (dst as u32) << 5
+                            | (static_ptr as u32 & ((1 << 17) - 1)) << 10,
+                    )?;
                 }
                 PostProc::LdStaticValue {
                     ptr,
