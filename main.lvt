@@ -6,18 +6,18 @@ I am interested in Rust and am currently writing my own programming language.
 ")
 
 (+label main (do
-  (mov r0 0u)
-  (ldbo r0) ; &a
-  (strlen) ; strlen(a)
-  (mov r1 r0) ; count
   (ldbo r0) ; &a
   (puts)
   (halt)
 ))
 
-(+label puts (do ; (*string, count)
-  (mov r2 r1)
-  (mov r1 r0)
+(+label puts (do ; (*str)
+  (mov r6 r0)
+  (mov r7 r30)
+  (strlen)
+  (mov r30 r7)
+  (mov r1 r6)
+  (mov r2 r0)
   (mov r0 1u)
   (int 1u)
 ))
