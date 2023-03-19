@@ -5,19 +5,22 @@ I am sqyyy, a programmer from Germany.
 I am interested in Rust and am currently writing my own programming language.
 ")
 
-(+label main (do
+(-label main (do
+  (_start)
   (ref a)
   (puts)
   (halt)
 ))
 
 (+label puts (do ; (*str)
-  (mov r6 r0)
-  (mov r7 r30)
+  (add r31 r31 16u)
+  (str r31 r0 -16) ; *str
+  (str r31 r30 -8) ; ret
   (strlen)
-  (mov r30 r7)
-  (mov r1 r6)
   (mov r2 r0)
+  (ldr r30 r31 -8) ; ret
+  (ldr r1 r31 -16) ; *str
+  (sub r31 r31 16u)
   (mov r0 1u)
   (int 1u)
 ))
@@ -30,4 +33,15 @@ I am interested in Rust and am currently writing my own programming language.
     (add r0 r0 1u) ; str += 1
   ) !0 r2) ; while b != 0
   (sub r0 r1 1u) ; return len - 1
+))
+
+(+label alloc (int 2u)) ; (size)
+
+(+label dealloc (int 3u)) ; (*addr, size)
+
+(-label _start (do
+  (mov r0 1024u)
+  (mul r0 r0 64u)
+  (int 2u)
+  (mov r31 r0)
 ))
