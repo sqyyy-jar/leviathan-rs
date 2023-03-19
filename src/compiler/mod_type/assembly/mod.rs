@@ -542,7 +542,7 @@ fn gen_scope_node_intermediary(
                     return Err(Error::InvalidCondition {
                         file: mem::take(&mut module.file),
                         src: mem::take(&mut module.src),
-                        span: reg_span.clone(),
+                        span: cond_span.clone(),
                     });
                 }
             }
