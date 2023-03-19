@@ -3,10 +3,10 @@ use std::mem;
 use phf::{phf_map, Map};
 use urban_common::opcodes::{
     L0_ADD, L0_DIV, L0_DIVS, L0_LDR, L0_MOV, L0_MOVS, L0_MUL, L0_REM, L0_REMS, L0_STR, L0_SUB,
-    L1_INT, L1_LDR, L1_NCALL, L1_SHL, L1_SHR, L1_SHRS, L1_STR, L1_VCALL, L2_ADD, L2_ADDF, L2_AND,
-    L2_DIV, L2_DIVF, L2_DIVS, L2_MUL, L2_MULF, L2_OR, L2_REM, L2_REMS, L2_SHL, L2_SHR, L2_SHRS,
-    L2_SUB, L2_SUBF, L2_XOR, L3_FTI, L3_ITF, L3_MOV, L3_NOT, L4_LDBO, L4_LDPC, L4_NCALL, L4_VCALL,
-    L5_HALT, L5_NOP, L1_LDRB, L1_LDRH, L1_LDRW, L1_STRB, L1_STRH, L1_STRW,
+    L1_INT, L1_LDR, L1_LDRB, L1_LDRH, L1_LDRW, L1_NCALL, L1_SHL, L1_SHR, L1_SHRS, L1_STR, L1_STRB,
+    L1_STRH, L1_STRW, L1_VCALL, L2_ADD, L2_ADDF, L2_AND, L2_CMP, L2_CMPF, L2_CMPS, L2_DIV, L2_DIVF,
+    L2_DIVS, L2_MUL, L2_MULF, L2_OR, L2_REM, L2_REMS, L2_SHL, L2_SHR, L2_SHRS, L2_SUB, L2_SUBF,
+    L2_XOR, L3_FTI, L3_ITF, L3_MOV, L3_NOT, L4_LDBO, L4_LDPC, L4_NCALL, L4_VCALL, L5_HALT, L5_NOP,
 };
 
 use crate::{
@@ -97,6 +97,9 @@ pub const INSN_MACROS: Map<&'static str, &[Op]> = phf_map! {
     "and" => &[Op { b: L2_AND, c: &[Reg, Reg, Reg] }],
     "or" => &[Op { b: L2_OR, c: &[Reg, Reg, Reg] }],
     "xor" => &[Op { b: L2_XOR, c: &[Reg, Reg, Reg] }],
+    "cmp" => &[Op { b: L2_CMP, c: &[Reg, Reg, Reg] }],
+    "cmps" => &[Op { b: L2_CMPS, c: &[Reg, Reg, Reg] }],
+    "cmpf" => &[Op { b: L2_CMPF, c: &[Reg, Reg, Reg] }],
     "not" => &[Op { b: L3_NOT, c: &[Reg, Reg] }],
     "fti" => &[Op { b: L3_FTI, c: &[Reg, Reg] }],
     "itf" => &[Op { b: L3_ITF, c: &[Reg, Reg] }],

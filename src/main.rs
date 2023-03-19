@@ -13,8 +13,6 @@ fn main() {
     let src = include_str!("../main.lvt");
     let src2 = r#"
 (mod assembly)
-(static buf
-  (buffer 16))
 "#;
     let tokens = tokenize("main".into(), "main.lvt".into(), src.to_string())
         .unwrap_or_else(|err| err.abort());

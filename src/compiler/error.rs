@@ -6,7 +6,7 @@ use std::{
 use ariadne::Source;
 
 use crate::util::{
-    ariadne::{error_report, span_error_report},
+    ariadne::{error_report, span_error_report, span_error_report_with_note},
     source::Span,
 };
 
@@ -77,6 +77,16 @@ pub enum Error {
         span: Span,
     },
     InvalidCallSignature {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    InvalidCondition {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    InvalidRegister {
         file: String,
         src: String,
         span: Span,
@@ -188,6 +198,21 @@ impl Error {
                     span,
                     "This call signature does not match the function signature",
                 );
+                source = Source::from(src);
+                file
+            }
+            Error::InvalidCondition { file, src, span } => {
+                report = span_error_report_with_note(
+                    file,
+                    span,
+                    "Invalid condition",
+                    "Valid conditions are '=', '!=', '<', '>', '<=', '>=', '!0' and '=0'",
+                );
+                source = Source::from(src);
+                file
+            }
+            Error::InvalidRegister { file, src, span } => {
+                report = span_error_report(file, span, "Invalid register");
                 source = Source::from(src);
                 file
             }

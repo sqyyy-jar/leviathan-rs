@@ -8,7 +8,10 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use phf::{phf_map, Map};
 use urban_common::{
     binary::EXECUTABLE,
-    opcodes::{L0_BRANCH_L, L0_LDR, L4_BRANCH},
+    opcodes::{
+        L0_BRANCH, L0_BRANCH_EQ, L0_BRANCH_GE, L0_BRANCH_GT, L0_BRANCH_L, L0_BRANCH_LE,
+        L0_BRANCH_LT, L0_BRANCH_NE, L0_BRANCH_NZ, L0_BRANCH_ZR, L0_LDR, L4_BRANCH,
+    },
 };
 
 use crate::{
@@ -231,6 +234,8 @@ impl CompileTask {
                 }
                 funcs.insert(j, ptr);
                 let FuncData::Intermediary { ir } = &func.data else {unreachable!()};
+                let mut points = HashMap::with_capacity(0);
+                let mut inner_post_procs = Vec::with_capacity(0);
                 for insn in ir {
                     match insn {
                         Insn::Raw(opc) => {
@@ -257,7 +262,7 @@ impl CompileTask {
                             out.write_u32::<LittleEndian>(0)?;
                             ptr += 4;
                         }
-                        Insn::BrLabelLinked {
+                        Insn::BranchLabelLinked {
                             module_index,
                             func_index,
                         } => {
@@ -273,8 +278,166 @@ impl CompileTask {
                             out.write_u32::<LittleEndian>(L4_BRANCH | 30)?;
                             ptr += 4;
                         }
+                        Insn::CreatePoint { pos } => {
+                            points.insert(*pos, ptr);
+                        }
+                        Insn::BranchPoint { pos } => {
+                            inner_post_procs.push(InnerPostProc::Branch { ptr, pos: *pos });
+                            out.write_u32::<LittleEndian>(0)?;
+                            ptr += 4;
+                        }
+                        Insn::BranchPointIfEq { pos, reg } => {
+                            inner_post_procs.push(InnerPostProc::BranchPointIfEq {
+                                ptr,
+                                pos: *pos,
+                                reg: *reg,
+                            });
+                            out.write_u32::<LittleEndian>(0)?;
+                            ptr += 4;
+                        }
+                        Insn::BranchPointIfNeq { pos, reg } => {
+                            inner_post_procs.push(InnerPostProc::BranchPointIfNeq {
+                                ptr,
+                                pos: *pos,
+                                reg: *reg,
+                            });
+                            out.write_u32::<LittleEndian>(0)?;
+                            ptr += 4;
+                        }
+                        Insn::BranchPointIfLt { pos, reg } => {
+                            inner_post_procs.push(InnerPostProc::BranchPointIfLt {
+                                ptr,
+                                pos: *pos,
+                                reg: *reg,
+                            });
+                            out.write_u32::<LittleEndian>(0)?;
+                            ptr += 4;
+                        }
+                        Insn::BranchPointIfGt { pos, reg } => {
+                            inner_post_procs.push(InnerPostProc::BranchPointIfGt {
+                                ptr,
+                                pos: *pos,
+                                reg: *reg,
+                            });
+                            out.write_u32::<LittleEndian>(0)?;
+                            ptr += 4;
+                        }
+                        Insn::BranchPointIfLeq { pos, reg } => {
+                            inner_post_procs.push(InnerPostProc::BranchPointIfLeq {
+                                ptr,
+                                pos: *pos,
+                                reg: *reg,
+                            });
+                            out.write_u32::<LittleEndian>(0)?;
+                            ptr += 4;
+                        }
+                        Insn::BranchPointIfGeq { pos, reg } => {
+                            inner_post_procs.push(InnerPostProc::BranchPointIfGeq {
+                                ptr,
+                                pos: *pos,
+                                reg: *reg,
+                            });
+                            out.write_u32::<LittleEndian>(0)?;
+                            ptr += 4;
+                        }
+                        Insn::BranchPointIfNz { pos, reg } => {
+                            inner_post_procs.push(InnerPostProc::BranchPointIfNz {
+                                ptr,
+                                pos: *pos,
+                                reg: *reg,
+                            });
+                            out.write_u32::<LittleEndian>(0)?;
+                            ptr += 4;
+                        }
+                        Insn::BranchPointIfZr { pos, reg } => {
+                            inner_post_procs.push(InnerPostProc::BranchPointIfZr {
+                                ptr,
+                                pos: *pos,
+                                reg: *reg,
+                            });
+                            out.write_u32::<LittleEndian>(0)?;
+                            ptr += 4;
+                        }
                     }
                 }
+                let saved_ptr = ptr;
+                for inner_post_proc in inner_post_procs {
+                    match inner_post_proc {
+                        InnerPostProc::Branch { ptr, pos } => {
+                            out.seek(SeekFrom::Start(16 + ptr as u64))?;
+                            let func_ptr = points[&pos] as isize;
+                            let offset = (func_ptr - ptr as isize) / 4;
+                            out.write_u32::<LittleEndian>(
+                                L0_BRANCH | (offset as u32 & ((1 << 27) - 1)),
+                            )?;
+                        }
+                        InnerPostProc::BranchPointIfEq { ptr, pos, reg } => {
+                            out.seek(SeekFrom::Start(16 + ptr as u64))?;
+                            let func_ptr = points[&pos] as isize;
+                            let offset = (func_ptr - ptr as isize) / 4;
+                            out.write_u32::<LittleEndian>(
+                                L0_BRANCH_EQ | offset as u32 & ((1 << 22) - 1) | (reg as u32) << 22,
+                            )?;
+                        }
+                        InnerPostProc::BranchPointIfNeq { ptr, pos, reg } => {
+                            out.seek(SeekFrom::Start(16 + ptr as u64))?;
+                            let func_ptr = points[&pos] as isize;
+                            let offset = (func_ptr - ptr as isize) / 4;
+                            out.write_u32::<LittleEndian>(
+                                L0_BRANCH_NE | offset as u32 & ((1 << 22) - 1) | (reg as u32) << 22,
+                            )?;
+                        }
+                        InnerPostProc::BranchPointIfLt { ptr, pos, reg } => {
+                            out.seek(SeekFrom::Start(16 + ptr as u64))?;
+                            let func_ptr = points[&pos] as isize;
+                            let offset = (func_ptr - ptr as isize) / 4;
+                            out.write_u32::<LittleEndian>(
+                                L0_BRANCH_LT | offset as u32 & ((1 << 22) - 1) | (reg as u32) << 22,
+                            )?;
+                        }
+                        InnerPostProc::BranchPointIfGt { ptr, pos, reg } => {
+                            out.seek(SeekFrom::Start(16 + ptr as u64))?;
+                            let func_ptr = points[&pos] as isize;
+                            let offset = (func_ptr - ptr as isize) / 4;
+                            out.write_u32::<LittleEndian>(
+                                L0_BRANCH_GT | offset as u32 & ((1 << 22) - 1) | (reg as u32) << 22,
+                            )?;
+                        }
+                        InnerPostProc::BranchPointIfLeq { ptr, pos, reg } => {
+                            out.seek(SeekFrom::Start(16 + ptr as u64))?;
+                            let func_ptr = points[&pos] as isize;
+                            let offset = (func_ptr - ptr as isize) / 4;
+                            out.write_u32::<LittleEndian>(
+                                L0_BRANCH_LE | offset as u32 & ((1 << 22) - 1) | (reg as u32) << 22,
+                            )?;
+                        }
+                        InnerPostProc::BranchPointIfGeq { ptr, pos, reg } => {
+                            out.seek(SeekFrom::Start(16 + ptr as u64))?;
+                            let func_ptr = points[&pos] as isize;
+                            let offset = (func_ptr - ptr as isize) / 4;
+                            out.write_u32::<LittleEndian>(
+                                L0_BRANCH_GE | offset as u32 & ((1 << 22) - 1) | (reg as u32) << 22,
+                            )?;
+                        }
+                        InnerPostProc::BranchPointIfNz { ptr, pos, reg } => {
+                            out.seek(SeekFrom::Start(16 + ptr as u64))?;
+                            let func_ptr = points[&pos] as isize;
+                            let offset = (func_ptr - ptr as isize) / 4;
+                            out.write_u32::<LittleEndian>(
+                                L0_BRANCH_NZ | offset as u32 & ((1 << 22) - 1) | (reg as u32) << 22,
+                            )?;
+                        }
+                        InnerPostProc::BranchPointIfZr { ptr, pos, reg } => {
+                            out.seek(SeekFrom::Start(16 + ptr as u64))?;
+                            let func_ptr = points[&pos] as isize;
+                            let offset = (func_ptr - ptr as isize) / 4;
+                            out.write_u32::<LittleEndian>(
+                                L0_BRANCH_ZR | offset as u32 & ((1 << 22) - 1) | (reg as u32) << 22,
+                            )?;
+                        }
+                    }
+                }
+                out.seek(SeekFrom::Start(16 + saved_ptr as u64))?;
             }
             modules.insert(i, (statics, funcs));
         }
@@ -311,7 +474,7 @@ impl CompileTask {
                             let static_ptr = modules[&module_index].0[&static_index] as isize;
                             let offset = (static_ptr - ptr as isize) / 4;
                             out.write_u32::<LittleEndian>(
-                                L0_LDR | ((dst as u32) << 22) | (offset as u32 & ((1 << 22) - 1)),
+                                L0_LDR | dst as u32 | (offset as u32 & ((1 << 22) - 1)) << 5,
                             )?;
                         }
                         IntermediaryStaticValue::String(_) => todo!("Load string"),
@@ -445,4 +608,16 @@ pub enum PostProc {
         module_index: usize,
         func_index: usize,
     },
+}
+
+pub enum InnerPostProc {
+    Branch { ptr: usize, pos: usize },
+    BranchPointIfEq { ptr: usize, pos: usize, reg: Reg },
+    BranchPointIfNeq { ptr: usize, pos: usize, reg: Reg },
+    BranchPointIfLt { ptr: usize, pos: usize, reg: Reg },
+    BranchPointIfGt { ptr: usize, pos: usize, reg: Reg },
+    BranchPointIfLeq { ptr: usize, pos: usize, reg: Reg },
+    BranchPointIfGeq { ptr: usize, pos: usize, reg: Reg },
+    BranchPointIfNz { ptr: usize, pos: usize, reg: Reg },
+    BranchPointIfZr { ptr: usize, pos: usize, reg: Reg },
 }

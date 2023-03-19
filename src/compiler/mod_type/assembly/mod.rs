@@ -353,7 +353,7 @@ fn gen_scope_node_intermediary(
     task: &mut CompileTask,
     module_index: usize,
     ir: &mut Vec<Insn>,
-    sub_nodes: Vec<Node>,
+    mut sub_nodes: Vec<Node>,
     span: Span,
     depth: usize,
 ) -> Result<()> {
@@ -483,7 +483,82 @@ fn gen_scope_node_intermediary(
             }
         }
         "if" => {
-            todo!()
+            if sub_nodes.len() != 4 {
+                return Err(Error::InvalidStatement {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            }
+            let Node::Ident { span: cond_span } = &sub_nodes[1] else {
+                return Err(Error::UnexpectedToken {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: sub_nodes[1].span(),
+                });
+            };
+            let cond = &module.src[cond_span.clone()];
+            let Node::Ident { span: reg_span } = &sub_nodes[2] else {
+                return Err(Error::UnexpectedToken {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: sub_nodes[2].span(),
+                });
+            };
+            let reg = &module.src[reg_span.clone()];
+            if !reg.starts_with('r') && !reg.starts_with('R') {
+                return Err(Error::InvalidRegister {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: reg_span.clone(),
+                });
+            }
+            let Ok(reg) = reg[1..].parse::<usize>() else {
+                return Err(Error::InvalidRegister {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: reg_span.clone(),
+                });
+            };
+            if reg > 31 {
+                return Err(Error::InvalidRegister {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: reg_span.clone(),
+                });
+            }
+            let reg = reg.into();
+            let pos = (depth << 32) | ir.len();
+            match cond {
+                "=" => ir.push(Insn::BranchPointIfNeq { pos, reg }),
+                "!=" => ir.push(Insn::BranchPointIfEq { pos, reg }),
+                "<" => ir.push(Insn::BranchPointIfGeq { pos, reg }),
+                ">" => ir.push(Insn::BranchPointIfLeq { pos, reg }),
+                "<=" => ir.push(Insn::BranchPointIfGt { pos, reg }),
+                ">=" => ir.push(Insn::BranchPointIfLt { pos, reg }),
+                "!0" => ir.push(Insn::BranchPointIfZr { pos, reg }),
+                "=0" => ir.push(Insn::BranchPointIfNz { pos, reg }),
+                _ => {
+                    return Err(Error::InvalidCondition {
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
+                        span: reg_span.clone(),
+                    });
+                }
+            }
+            let expr = sub_nodes.pop().unwrap();
+            let Node::Node { span, sub_nodes } = expr else {
+                return Err(Error::UnexpectedToken {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: expr.span(),
+                });
+            };
+            gen_scope_node_intermediary(task, module_index, ir, sub_nodes, span, depth + 1)?;
+            ir.push(Insn::CreatePoint { pos });
+            if depth == 0 {
+                ir.push(Insn::Ret);
+            }
         }
         "while" => {
             todo!()
@@ -510,7 +585,7 @@ fn gen_scope_node_intermediary(
             }
             if sub_nodes.len() == 1 {
                 if let Some(func_index) = module.func_indices.get(name) {
-                    ir.push(Insn::BrLabelLinked {
+                    ir.push(Insn::BranchLabelLinked {
                         module_index,
                         func_index: *func_index,
                     });
