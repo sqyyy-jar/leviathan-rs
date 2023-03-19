@@ -1,9 +1,33 @@
 (mod assembly)
-(static _ (buffer 1))
+
+(static a "Hello world!
+I am sqyyy, a programmer from Germany.
+I am interested in Rust and am currently writing my own programming language.
+")
+
 (+label main (do
-  (movs r0 11)
-  (movs r1 31)
-  (add)
-  (halt)))
-(+label add (do
-  (add r0 r0 r1)))
+  (mov r0 0u)
+  (ldbo r0) ; &a
+  (strlen) ; strlen(a)
+  (mov r1 r0) ; count
+  (ldbo r0) ; &a
+  (puts)
+  (halt)
+))
+
+(+label puts (do ; (*string, count)
+  (mov r2 r1)
+  (mov r1 r0)
+  (mov r0 1u)
+  (int 1u)
+))
+
+(+label strlen (do ; (*str)
+  (mov r1 0u) ; len = 0
+  (do-while (do
+    (add r1 r1 1u) ; len += 1
+    (ldrb r2 r0 0) ; b = *str
+    (add r0 r0 1u) ; str += 1
+  ) !0 r2) ; while b != 0
+  (sub r0 r1 1u) ; return len - 1
+))

@@ -611,14 +611,14 @@ fn gen_scope_node_intermediary(
             ir.push(Insn::BranchPoint { pos: cond_pos });
             ir.push(Insn::CreatePoint { pos });
             let insn = match cond {
-                "=" => Insn::BranchPointIfNeq { pos, reg },
-                "!=" => Insn::BranchPointIfEq { pos, reg },
-                "<" => Insn::BranchPointIfGeq { pos, reg },
-                ">" => Insn::BranchPointIfLeq { pos, reg },
-                "<=" => Insn::BranchPointIfGt { pos, reg },
-                ">=" => Insn::BranchPointIfLt { pos, reg },
-                "!0" => Insn::BranchPointIfZr { pos, reg },
-                "=0" => Insn::BranchPointIfNz { pos, reg },
+                "=" => Insn::BranchPointIfEq { pos, reg },
+                "!=" => Insn::BranchPointIfNeq { pos, reg },
+                "<" => Insn::BranchPointIfLt { pos, reg },
+                ">" => Insn::BranchPointIfGt { pos, reg },
+                "<=" => Insn::BranchPointIfLeq { pos, reg },
+                ">=" => Insn::BranchPointIfGeq { pos, reg },
+                "!0" => Insn::BranchPointIfNz { pos, reg },
+                "=0" => Insn::BranchPointIfZr { pos, reg },
                 _ => {
                     return Err(Error::InvalidCondition {
                         file: mem::take(&mut module.file),
@@ -691,14 +691,14 @@ fn gen_scope_node_intermediary(
             let pos = (depth << 32) | ir.len();
             ir.push(Insn::CreatePoint { pos });
             let insn = match cond {
-                "=" => Insn::BranchPointIfNeq { pos, reg },
-                "!=" => Insn::BranchPointIfEq { pos, reg },
-                "<" => Insn::BranchPointIfGeq { pos, reg },
-                ">" => Insn::BranchPointIfLeq { pos, reg },
-                "<=" => Insn::BranchPointIfGt { pos, reg },
-                ">=" => Insn::BranchPointIfLt { pos, reg },
-                "!0" => Insn::BranchPointIfZr { pos, reg },
-                "=0" => Insn::BranchPointIfNz { pos, reg },
+                "=" => Insn::BranchPointIfEq { pos, reg },
+                "!=" => Insn::BranchPointIfNeq { pos, reg },
+                "<" => Insn::BranchPointIfLt { pos, reg },
+                ">" => Insn::BranchPointIfGt { pos, reg },
+                "<=" => Insn::BranchPointIfLeq { pos, reg },
+                ">=" => Insn::BranchPointIfGeq { pos, reg },
+                "!0" => Insn::BranchPointIfNz { pos, reg },
+                "=0" => Insn::BranchPointIfZr { pos, reg },
                 _ => {
                     return Err(Error::InvalidCondition {
                         file: mem::take(&mut module.file),
