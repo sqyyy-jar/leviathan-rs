@@ -561,7 +561,165 @@ fn gen_scope_node_intermediary(
             }
         }
         "while" => {
-            todo!()
+            if sub_nodes.len() != 4 {
+                return Err(Error::InvalidStatement {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            }
+            let Node::Ident { span: cond_span } = &sub_nodes[2] else {
+                return Err(Error::UnexpectedToken {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: sub_nodes[2].span(),
+                });
+            };
+            let cond = &module.src[cond_span.clone()];
+            let Node::Ident { span: reg_span } = &sub_nodes[3] else {
+                return Err(Error::UnexpectedToken {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: sub_nodes[3].span(),
+                });
+            };
+            let reg = &module.src[reg_span.clone()];
+            if !reg.starts_with('r') && !reg.starts_with('R') {
+                return Err(Error::InvalidRegister {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: reg_span.clone(),
+                });
+            }
+            let Ok(reg) = reg[1..].parse::<usize>() else {
+                return Err(Error::InvalidRegister {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: reg_span.clone(),
+                });
+            };
+            if reg > 31 {
+                return Err(Error::InvalidRegister {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: reg_span.clone(),
+                });
+            }
+            let reg = reg.into();
+            let pos = (depth << 32) | ir.len();
+            let cond_pos = (depth << 32) | ir.len() | 1 << 63;
+            ir.push(Insn::BranchPoint { pos: cond_pos });
+            ir.push(Insn::CreatePoint { pos });
+            let insn = match cond {
+                "=" => Insn::BranchPointIfNeq { pos, reg },
+                "!=" => Insn::BranchPointIfEq { pos, reg },
+                "<" => Insn::BranchPointIfGeq { pos, reg },
+                ">" => Insn::BranchPointIfLeq { pos, reg },
+                "<=" => Insn::BranchPointIfGt { pos, reg },
+                ">=" => Insn::BranchPointIfLt { pos, reg },
+                "!0" => Insn::BranchPointIfZr { pos, reg },
+                "=0" => Insn::BranchPointIfNz { pos, reg },
+                _ => {
+                    return Err(Error::InvalidCondition {
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
+                        span: cond_span.clone(),
+                    });
+                }
+            };
+            let expr = sub_nodes.remove(1);
+            let Node::Node { span, sub_nodes } = expr else {
+                return Err(Error::UnexpectedToken {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: expr.span(),
+                });
+            };
+            gen_scope_node_intermediary(task, module_index, ir, sub_nodes, span, depth + 1)?;
+            ir.push(Insn::CreatePoint { pos: cond_pos });
+            ir.push(insn);
+            if depth == 0 {
+                ir.push(Insn::Ret);
+            }
+        }
+        "do-while" => {
+            if sub_nodes.len() != 4 {
+                return Err(Error::InvalidStatement {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            }
+            let Node::Ident { span: cond_span } = &sub_nodes[2] else {
+                return Err(Error::UnexpectedToken {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: sub_nodes[2].span(),
+                });
+            };
+            let cond = &module.src[cond_span.clone()];
+            let Node::Ident { span: reg_span } = &sub_nodes[3] else {
+                return Err(Error::UnexpectedToken {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: sub_nodes[3].span(),
+                });
+            };
+            let reg = &module.src[reg_span.clone()];
+            if !reg.starts_with('r') && !reg.starts_with('R') {
+                return Err(Error::InvalidRegister {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: reg_span.clone(),
+                });
+            }
+            let Ok(reg) = reg[1..].parse::<usize>() else {
+                return Err(Error::InvalidRegister {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: reg_span.clone(),
+                });
+            };
+            if reg > 31 {
+                return Err(Error::InvalidRegister {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: reg_span.clone(),
+                });
+            }
+            let reg = reg.into();
+            let pos = (depth << 32) | ir.len();
+            ir.push(Insn::CreatePoint { pos });
+            let insn = match cond {
+                "=" => Insn::BranchPointIfNeq { pos, reg },
+                "!=" => Insn::BranchPointIfEq { pos, reg },
+                "<" => Insn::BranchPointIfGeq { pos, reg },
+                ">" => Insn::BranchPointIfLeq { pos, reg },
+                "<=" => Insn::BranchPointIfGt { pos, reg },
+                ">=" => Insn::BranchPointIfLt { pos, reg },
+                "!0" => Insn::BranchPointIfZr { pos, reg },
+                "=0" => Insn::BranchPointIfNz { pos, reg },
+                _ => {
+                    return Err(Error::InvalidCondition {
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
+                        span: cond_span.clone(),
+                    });
+                }
+            };
+            let expr = sub_nodes.remove(1);
+            let Node::Node { span, sub_nodes } = expr else {
+                return Err(Error::UnexpectedToken {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: expr.span(),
+                });
+            };
+            gen_scope_node_intermediary(task, module_index, ir, sub_nodes, span, depth + 1)?;
+            ir.push(insn);
+            if depth == 0 {
+                ir.push(Insn::Ret);
+            }
         }
         _ => {
             if let Some(macro_) = MACROS.get(name) {
