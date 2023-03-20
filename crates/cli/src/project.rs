@@ -9,7 +9,7 @@ use clap::{
     ArgMatches, Error,
 };
 use leviathan_compiler::{
-    compiler::CompileTask,
+    compiler::{CompileTask, Status},
     parser::{ast::build_ast, tokenizer::tokenize},
 };
 use serde::Deserialize;
@@ -88,6 +88,7 @@ pub fn build(_matches: &ArgMatches) -> Result<()> {
         let result = task.include(ast.unwrap(), source_file.main);
         if let Err(err) = result {
             errors.push(LoadError::Compile(err));
+            task.status = Status::Open;
             continue;
         }
     }

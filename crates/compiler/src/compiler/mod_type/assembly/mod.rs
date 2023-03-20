@@ -11,7 +11,8 @@ use crate::{
         error::{Error, Result},
         intermediary::{Insn, IntermediaryStaticValue, Reg},
         mod_type::assembly::{insns::INSN_MACROS, macros::MACROS},
-        CompileTask, Func, FuncData, ModuleType, Static, StaticData, Type, UncollectedModule,
+        CompileTask, Func, FuncData, Import, ModuleType, Static, StaticData, Type,
+        UncollectedModule,
     },
     parser::Node,
     util::source::Span,
@@ -33,7 +34,7 @@ impl ModuleType for Assembly {
         let mut nodes = root.into_iter();
         nodes.next().unwrap();
         for node in nodes {
-            let Node::Node { span, sub_nodes } = node else {
+            let Node::Node { span, mut sub_nodes } = node else {
                 panic!("Invalid AST");
             };
             if sub_nodes.is_empty() {
@@ -60,22 +61,16 @@ impl ModuleType for Assembly {
                             span,
                         });
                     }
-                    let Node::Ident { span: name_span } = &sub_nodes[1] else {
+                    let Node::Ident { .. } = &sub_nodes[1] else {
                         return Err(Error::UnexpectedToken {
                             file: mem::take(&mut module.file),
                             src: mem::take(&mut module.src),
                             span: sub_nodes[1].span(),
                         });
                     };
-                    let name = &module.src[name_span.clone()];
-                    let Some(include) = task.module_indices.get(name) else {
-                        return Err(Error::UnknownModule {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
-                            span: name_span.clone(),
-                        });
-                    };
-                    module.imports.push(*include);
+                    module.unresolved_imports.push(Import {
+                        node: sub_nodes.pop().unwrap(),
+                    });
                 }
                 "static" => {
                     if sub_nodes.len() != 3 {
@@ -164,8 +159,21 @@ impl ModuleType for Assembly {
     }
 
     fn gen_intermediary(&self, task: &mut CompileTask, module_index: usize) -> Result<()> {
-        let statics_len = task.modules[module_index].statics.len();
-        let funcs_len = task.modules[module_index].funcs.len();
+        let module = &mut task.modules[module_index];
+        let statics_len = module.statics.len();
+        let funcs_len = module.funcs.len();
+        for import in module.unresolved_imports.drain(..) {
+            let Node::Ident { span } = import.node else {unreachable!()};
+            let name = &module.src[span.clone()];
+            let Some(include) = task.module_indices.get(name) else {
+                return Err(Error::UnknownModule {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            };
+            module.imports.push(*include);
+        }
         for static_index in 0..statics_len {
             gen_static_intermediary(task, module_index, static_index)?;
         }

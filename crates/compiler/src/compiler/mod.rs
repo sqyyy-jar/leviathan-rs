@@ -513,6 +513,7 @@ impl CompileTask {
 pub struct Module {
     pub file: String,
     pub src: String,
+    pub unresolved_imports: Vec<Import>,
     pub imports: Vec<usize>,
     pub func_indices: HashMap<String, usize>,
     pub funcs: Vec<Func>,
@@ -527,6 +528,8 @@ impl Debug for Module {
         f.debug_struct("Module")
             .field("file", &self.file)
             .field("src", &self.src)
+            .field("unresolved_imports", &self.unresolved_imports)
+            .field("imports", &self.imports)
             .field("func_indices", &self.func_indices)
             .field("funcs", &self.funcs)
             .field("static_indices", &self.static_indices)
@@ -541,6 +544,7 @@ impl Module {
         Self {
             file,
             src,
+            unresolved_imports: Vec::with_capacity(0),
             imports: Vec::with_capacity(0),
             func_indices: HashMap::with_capacity(0),
             funcs: Vec::with_capacity(0),
@@ -550,6 +554,11 @@ impl Module {
             used: false,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct Import {
+    pub node: Node,
 }
 
 #[derive(Debug)]
