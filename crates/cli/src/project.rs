@@ -1,5 +1,5 @@
 use std::{
-    fs::{self, create_dir, File, ReadDir},
+    fs::{create_dir_all, read_dir, read_to_string, File, ReadDir},
     path::PathBuf,
     process::exit,
 };
@@ -39,7 +39,7 @@ enum LoadError {
 }
 
 pub fn build(_matches: &ArgMatches) -> Result<()> {
-    let config = fs::read_to_string("build.lvt.toml");
+    let config = read_to_string("build.lvt.toml");
     if let Err(err) = config {
         if let std::io::ErrorKind::NotFound = err.kind() {
             return Err(Error::raw(ErrorKind::Io, "Could not find a build.lvt.toml"));
@@ -52,7 +52,7 @@ pub fn build(_matches: &ArgMatches) -> Result<()> {
         return Err(Error::raw(ErrorKind::Format, err));
     }
     let config: Config = config.unwrap();
-    let source_dir = fs::read_dir("src");
+    let source_dir = read_dir("src");
     if let Err(err) = source_dir {
         if let std::io::ErrorKind::NotFound = err.kind() {
             return Err(Error::raw(ErrorKind::Io, "Could not find src directory"));
@@ -71,7 +71,7 @@ pub fn build(_matches: &ArgMatches) -> Result<()> {
     let mut task = CompileTask::default();
     let mut errors = Vec::with_capacity(0);
     for source_file in source_files {
-        let source = fs::read_to_string(&source_file.path)?;
+        let source = read_to_string(&source_file.path)?;
         let Some(path) = source_file.path.to_str() else {
             return Err(Error::raw(ErrorKind::InvalidUtf8, "File with invalid name"));
         };
@@ -106,7 +106,7 @@ pub fn build(_matches: &ArgMatches) -> Result<()> {
     if let Err(err) = task.filter() {
         err.abort();
     };
-    create_dir("out")?;
+    create_dir_all("out")?;
     let mut binary = File::create(
         config
             .package
@@ -165,7 +165,7 @@ fn collect_dir(
             continue;
         }
         if type_.is_dir() {
-            let source_dir = fs::read_dir(entry.path())?;
+            let source_dir = read_dir(entry.path())?;
             collect_dir(source_files, source_dir, main_found)?;
             continue;
         }
