@@ -1,4 +1,7 @@
-use clap::{command, crate_version, ArgMatches, Command};
+pub mod project;
+
+use clap::{command, crate_version, Command};
+use project::build;
 
 const BUILD_DATE: &str = env!("BUILD_DATE");
 
@@ -15,9 +18,9 @@ fn main() {
         Some(("version", _)) => {
             println!("leviathan-cli version {} {BUILD_DATE}", crate_version!());
         }
-        Some(("build", matches)) => build(matches),
+        Some(("build", matches)) => {
+            build(matches).unwrap_or_else(|err| err.format(&mut cmd).exit())
+        }
         _ => unreachable!("clap should ensure we don't get here"),
     };
 }
-
-fn build(_matches: &ArgMatches) {}

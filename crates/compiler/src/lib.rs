@@ -9,7 +9,7 @@ pub mod compiler;
 pub mod parser;
 pub mod util;
 
-fn main() {
+fn _main() {
     let src = include_str!("../../../main.lvt");
     let src2 = r#"
 (mod assembly)
