@@ -1,0 +1,10 @@
+[package]
+name = "leviathan-compiler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+phf = { version = "0.11.1", features = ["macros"] }
+ariadne = { version = "0.2.0", features = ["auto-color"] }
+urban-common = { git = "https://github.com/sqyyy-jar/urban-engine.git" }
+byteorder = "1.4.3"
