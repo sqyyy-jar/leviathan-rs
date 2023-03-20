@@ -52,6 +52,31 @@ impl ModuleType for Assembly {
             };
             let keyword = &module.src[keyword_span.clone()];
             match keyword {
+                "use" => {
+                    if sub_nodes.len() != 2 {
+                        return Err(Error::InvalidStatement {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span,
+                        });
+                    }
+                    let Node::Ident { span: name_span } = &sub_nodes[1] else {
+                        return Err(Error::UnexpectedToken {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span: sub_nodes[1].span(),
+                        });
+                    };
+                    let name = &module.src[name_span.clone()];
+                    let Some(include) = task.module_indices.get(name) else {
+                        return Err(Error::UnknownModule {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span: name_span.clone(),
+                        });
+                    };
+                    module.imports.push(*include);
+                }
                 "static" => {
                     if sub_nodes.len() != 3 {
                         return Err(Error::InvalidStatement {
@@ -783,6 +808,24 @@ fn gen_scope_node_intermediary(
                     }
                     return Ok(());
                 }
+            }
+            let name = name.to_string();
+            for i in 0..module.imports.len() {
+                let i = module.imports[i];
+                let include = &task.modules[i];
+                if let Some(func_index) = include.func_indices.get(&name) {
+                    if include.funcs[*func_index].public {
+                        ir.push(Insn::BranchLabelLinked {
+                            module_index: i,
+                            func_index: *func_index,
+                        });
+                        if depth == 0 {
+                            ir.push(Insn::Ret);
+                        }
+                        return Ok(());
+                    }
+                }
+                module = &mut task.modules[module_index];
             }
             return Err(Error::UnknownFunc {
                 file: mem::take(&mut module.file),

@@ -513,6 +513,7 @@ impl CompileTask {
 pub struct Module {
     pub file: String,
     pub src: String,
+    pub imports: Vec<usize>,
     pub func_indices: HashMap<String, usize>,
     pub funcs: Vec<Func>,
     pub static_indices: HashMap<String, usize>,
@@ -540,6 +541,7 @@ impl Module {
         Self {
             file,
             src,
+            imports: Vec::with_capacity(0),
             func_indices: HashMap::with_capacity(0),
             funcs: Vec::with_capacity(0),
             static_indices: HashMap::with_capacity(0),

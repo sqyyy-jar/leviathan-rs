@@ -61,6 +61,11 @@ pub enum Error {
         src: String,
         span: Span,
     },
+    UnknownModule {
+        file: String,
+        src: String,
+        span: Span,
+    },
     UnknownFunc {
         file: String,
         src: String,
@@ -177,8 +182,13 @@ impl Error {
                 source = Source::from(src);
                 file
             }
+            Error::UnknownModule { file, src, span } => {
+                report = span_error_report(file, span, "This module could not be found");
+                source = Source::from(src);
+                file
+            }
             Error::UnknownFunc { file, src, span } => {
-                report = span_error_report(file, span, "This function is not known");
+                report = span_error_report(file, span, "This function could not be found");
                 source = Source::from(src);
                 file
             }
