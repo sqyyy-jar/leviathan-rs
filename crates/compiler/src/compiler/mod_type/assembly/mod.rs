@@ -601,19 +601,19 @@ fn gen_scope_node_intermediary(
                     span,
                 });
             }
-            let Node::Ident { span: cond_span } = &sub_nodes[2] else {
+            let Node::Ident { span: cond_span } = &sub_nodes[1] else {
+                return Err(Error::UnexpectedToken {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: sub_nodes[1].span(),
+                });
+            };
+            let cond = &module.src[cond_span.clone()];
+            let Node::Ident { span: reg_span } = &sub_nodes[2] else {
                 return Err(Error::UnexpectedToken {
                     file: mem::take(&mut module.file),
                     src: mem::take(&mut module.src),
                     span: sub_nodes[2].span(),
-                });
-            };
-            let cond = &module.src[cond_span.clone()];
-            let Node::Ident { span: reg_span } = &sub_nodes[3] else {
-                return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
-                    span: sub_nodes[3].span(),
                 });
             };
             let reg = &module.src[reg_span.clone()];
@@ -660,7 +660,7 @@ fn gen_scope_node_intermediary(
                     });
                 }
             };
-            let expr = sub_nodes.remove(1);
+            let expr = sub_nodes.pop().unwrap();
             let Node::Node { span, sub_nodes } = expr else {
                 return Err(Error::UnexpectedToken {
                     file: mem::take(&mut module.file),
