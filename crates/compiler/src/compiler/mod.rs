@@ -22,7 +22,7 @@ use crate::{
 use self::{
     error::{Error, Result},
     intermediary::{Insn, IntermediaryStaticValue, Reg},
-    mod_type::assembly::Assembly,
+    mod_type::{assembly::AssemblyLanguage, code::CodeLanguage},
 };
 
 pub mod error;
@@ -30,7 +30,8 @@ pub mod intermediary;
 pub mod mod_type;
 
 pub const MODULE_TYPES: Map<&'static str, &dyn ModuleType> = phf_map! {
-    "assembly" => &Assembly,
+    "assembly" => &AssemblyLanguage,
+    "" => &CodeLanguage,
 };
 
 pub trait ModuleType {

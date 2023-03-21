@@ -20,9 +20,9 @@ use crate::{
 
 use self::static_funcs::STATIC_FUNCS;
 
-pub struct Assembly;
+pub struct AssemblyLanguage;
 
-impl ModuleType for Assembly {
+impl ModuleType for AssemblyLanguage {
     fn collect(
         &self,
         task: &mut CompileTask,
