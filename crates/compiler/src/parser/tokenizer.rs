@@ -256,6 +256,28 @@ pub fn tokenize(name: String, file: String, src: String) -> Result<TokenList> {
 
 fn parse_token(span: Span, source: &mut Source) -> Option<Token> {
     let s = source.str(span.clone());
+    if let Some(s) = s.strip_prefix("0x") {
+        if !s.starts_with('-') && !s.starts_with('+') {
+            if let Some(s) = s.strip_suffix('u') {
+                if let Ok(value) = u64::from_str_radix(s, 16) {
+                    return Some(Token::UInt { span, value });
+                }
+            }
+            if let Ok(value) = i64::from_str_radix(s, 16) {
+                return Some(Token::Int { span, value });
+            }
+        }
+    }
+    if let Some(s) = s.strip_prefix("-0x") {
+        if !s.starts_with('-') && !s.starts_with('+') {
+            if let Ok(value) = i64::from_str_radix(s, 16) {
+                return Some(Token::Int {
+                    span,
+                    value: -value,
+                });
+            }
+        }
+    }
     if let Some(s) = s.strip_suffix('u') {
         if let Ok(value) = s.parse() {
             return Some(Token::UInt { span, value });
