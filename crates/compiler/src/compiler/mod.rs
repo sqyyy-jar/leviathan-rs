@@ -31,7 +31,7 @@ pub mod mod_type;
 
 pub const MODULE_TYPES: Map<&'static str, &dyn ModuleType> = phf_map! {
     "assembly" => &AssemblyLanguage,
-    "" => &CodeLanguage,
+    "code" => &CodeLanguage,
 };
 
 pub trait ModuleType {
