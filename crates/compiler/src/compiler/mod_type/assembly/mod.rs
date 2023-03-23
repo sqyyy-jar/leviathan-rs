@@ -103,7 +103,9 @@ fn collect(
                     });
                 }
                 module.statics.push(Static {
-                    data: StaticData::Collected { nodes: sub_nodes },
+                    data: StaticData::Collected {
+                        node: sub_nodes.pop().unwrap(),
+                    },
                     used: false,
                 });
                 module
@@ -197,8 +199,15 @@ fn gen_static_intermediary(
 ) -> Result<()> {
     let module = &mut task.modules[module_index];
     let Static { data, used: _ } = &mut module.statics[static_index];
-    let StaticData::Collected { nodes } = data else {unreachable!()};
-    match nodes.pop().unwrap() {
+    let StaticData::Collected { node } = mem::replace(
+        data,
+        StaticData::Intermediary {
+            value: IntermediaryStaticValue::Int(0),
+        },
+    ) else {
+        unreachable!()
+    };
+    match node {
         Node::Ident { span } => Err(Error::UnexpectedToken {
             file: mem::take(&mut module.file),
             src: mem::take(&mut module.src),

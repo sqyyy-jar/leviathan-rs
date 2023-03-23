@@ -14,7 +14,7 @@ use crate::{
     util::source::Span,
 };
 
-use self::keywords::{r#fn, r#static, r#use};
+use self::keywords::{collect_fn, collect_static, collect_use};
 
 type KeywordProc = fn(
     task: &mut CompileTask,
@@ -25,9 +25,9 @@ type KeywordProc = fn(
 ) -> Result<()>;
 
 const KEYWORDS: Map<&'static str, KeywordProc> = phf_map! {
-    "use" => r#use,
-    "static" => r#static,
-    "fn" => r#fn,
+    "use" => collect_use,
+    "static" => collect_static,
+    "fn" => collect_fn,
 };
 
 pub enum CodeLanguage {

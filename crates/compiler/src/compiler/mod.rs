@@ -593,7 +593,7 @@ pub enum FuncData {
 
 #[derive(Debug)]
 pub enum StaticData {
-    Collected { nodes: Vec<Node> },
+    Collected { node: Node },
     Intermediary { value: IntermediaryStaticValue },
 }
 
