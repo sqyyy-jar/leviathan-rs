@@ -11,7 +11,7 @@ use crate::{
         error::{Error, Result},
         intermediary::{Insn, IntermediaryStaticValue, Reg},
         mod_type::assembly::{insns::INSN_MACROS, macros::MACROS},
-        CompileTask, Func, FuncData, Import, ModuleType, Static, StaticData, Type,
+        CompileTask, Func, FuncData, Import, ModuleType, ModuleVTable, Static, StaticData, Type,
         UncollectedModule,
     },
     parser::Node,
@@ -23,165 +23,171 @@ use self::static_funcs::STATIC_FUNCS;
 pub struct AssemblyLanguage;
 
 impl ModuleType for AssemblyLanguage {
-    fn collect(
-        &self,
-        task: &mut CompileTask,
-        module_index: usize,
-        UncollectedModule { root }: UncollectedModule,
-        main: bool,
-    ) -> Result<()> {
-        let module = &mut task.modules[module_index];
-        let mut nodes = root.into_iter();
-        nodes.next().unwrap();
-        for node in nodes {
-            let Node::Node { span, mut sub_nodes } = node else {
-                panic!("Invalid AST");
-            };
-            if sub_nodes.is_empty() {
-                return Err(Error::EmptyNode {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
-                    span,
-                });
-            }
-            let Node::Ident { span: keyword_span } = &sub_nodes[0] else {
-                return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
-                    span: sub_nodes[0].span(),
-                });
-            };
-            let keyword = &module.src[keyword_span.clone()];
-            match keyword {
-                "use" => {
-                    if sub_nodes.len() != 2 {
-                        return Err(Error::InvalidStatement {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
-                            span,
-                        });
-                    }
-                    let Node::Ident { .. } = &sub_nodes[1] else {
-                        return Err(Error::UnexpectedToken {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
-                            span: sub_nodes[1].span(),
-                        });
-                    };
-                    module.unresolved_imports.push(Import {
-                        node: sub_nodes.pop().unwrap(),
-                    });
-                }
-                "static" => {
-                    if sub_nodes.len() != 3 {
-                        return Err(Error::InvalidStatement {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
-                            span,
-                        });
-                    }
-                    let Node::Ident { span: name_span } = &sub_nodes[1] else {
-                        return Err(Error::UnexpectedToken {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
-                            span: sub_nodes[1].span(),
-                        });
-                    };
-                    let name = &module.src[name_span.clone()];
-                    if module.static_indices.contains_key(name) {
-                        return Err(Error::DuplicateName {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
-                            span: name_span.clone(),
-                        });
-                    }
-                    module.statics.push(Static {
-                        data: StaticData::Collected { nodes: sub_nodes },
-                        used: false,
-                    });
-                    module
-                        .static_indices
-                        .insert(name.to_string(), module.statics.len() - 1);
-                }
-                "-label" | "+label" => {
-                    let public = keyword.starts_with('+');
-                    if sub_nodes.len() != 3 {
-                        return Err(Error::InvalidStatement {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
-                            span,
-                        });
-                    }
-                    let Node::Ident { span: name_span } = &sub_nodes[1] else {
-                        return Err(Error::UnexpectedToken {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
-                            span: sub_nodes[1].span(),
-                        });
-                    };
-                    let name = &module.src[name_span.clone()];
-                    if module.func_indices.contains_key(name) {
-                        return Err(Error::DuplicateName {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
-                            span: name_span.clone(),
-                        });
-                    }
-                    module.funcs.push(Func {
-                        public,
-                        params: vec![(None, Type::Unknown)],
-                        return_: Type::Unknown,
-                        data: FuncData::Collected { nodes: sub_nodes },
-                        used: false,
-                    });
-                    module
-                        .func_indices
-                        .insert(name.to_string(), module.funcs.len() - 1);
-                    if main && name == "main" {
-                        task.main = Some((module_index, module.funcs.len() - 1));
-                    }
-                }
-                _ => {
-                    return Err(Error::InvalidKeyword {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
-                        span: keyword_span.clone(),
-                    })
-                }
-            }
+    fn vtable(&self) -> ModuleVTable {
+        ModuleVTable {
+            collect,
+            gen_intermediary,
         }
-        if main && task.main.is_none() {
-            return Err(Error::NoMainFound {
+    }
+}
+
+fn collect(
+    task: &mut CompileTask,
+    module_index: usize,
+    UncollectedModule { root }: UncollectedModule,
+    main: bool,
+) -> Result<()> {
+    let module = &mut task.modules[module_index];
+    let mut nodes = root.into_iter();
+    nodes.next().unwrap();
+    for node in nodes {
+        let Node::Node { span, mut sub_nodes } = node else {
+            panic!("Invalid AST");
+        };
+        if sub_nodes.is_empty() {
+            return Err(Error::EmptyNode {
                 file: mem::take(&mut module.file),
+                src: mem::take(&mut module.src),
+                span,
             });
         }
-        Ok(())
-    }
-
-    fn gen_intermediary(&self, task: &mut CompileTask, module_index: usize) -> Result<()> {
-        let module = &mut task.modules[module_index];
-        let statics_len = module.statics.len();
-        let funcs_len = module.funcs.len();
-        for import in module.unresolved_imports.drain(..) {
-            let Node::Ident { span } = import.node else {unreachable!()};
-            let name = &module.src[span.clone()];
-            let Some(include) = task.module_indices.get(name) else {
-                return Err(Error::UnknownModule {
+        let Node::Ident { span: keyword_span } = &sub_nodes[0] else {
+            return Err(Error::UnexpectedToken {
+                file: mem::take(&mut module.file),
+                src: mem::take(&mut module.src),
+                span: sub_nodes[0].span(),
+            });
+        };
+        let keyword = &module.src[keyword_span.clone()];
+        match keyword {
+            "use" => {
+                if sub_nodes.len() != 2 {
+                    return Err(Error::InvalidStatement {
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
+                        span,
+                    });
+                }
+                let Node::Ident { .. } = &sub_nodes[1] else {
+                    return Err(Error::UnexpectedToken {
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
+                        span: sub_nodes[1].span(),
+                    });
+                };
+                module.unresolved_imports.push(Import {
+                    node: sub_nodes.pop().unwrap(),
+                });
+            }
+            "static" => {
+                if sub_nodes.len() != 3 {
+                    return Err(Error::InvalidStatement {
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
+                        span,
+                    });
+                }
+                let Node::Ident { span: name_span } = &sub_nodes[1] else {
+                    return Err(Error::UnexpectedToken {
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
+                        span: sub_nodes[1].span(),
+                    });
+                };
+                let name = &module.src[name_span.clone()];
+                if module.static_indices.contains_key(name) {
+                    return Err(Error::DuplicateName {
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
+                        span: name_span.clone(),
+                    });
+                }
+                module.statics.push(Static {
+                    data: StaticData::Collected { nodes: sub_nodes },
+                    used: false,
+                });
+                module
+                    .static_indices
+                    .insert(name.to_string(), module.statics.len() - 1);
+            }
+            "-label" | "+label" => {
+                let public = keyword.starts_with('+');
+                if sub_nodes.len() != 3 {
+                    return Err(Error::InvalidStatement {
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
+                        span,
+                    });
+                }
+                let Node::Ident { span: name_span } = &sub_nodes[1] else {
+                    return Err(Error::UnexpectedToken {
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
+                        span: sub_nodes[1].span(),
+                    });
+                };
+                let name = &module.src[name_span.clone()];
+                if module.func_indices.contains_key(name) {
+                    return Err(Error::DuplicateName {
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
+                        span: name_span.clone(),
+                    });
+                }
+                module.funcs.push(Func {
+                    public,
+                    params: vec![(None, Type::Unknown)],
+                    return_: Type::Unknown,
+                    data: FuncData::Collected { nodes: sub_nodes },
+                    used: false,
+                });
+                module
+                    .func_indices
+                    .insert(name.to_string(), module.funcs.len() - 1);
+                if main && name == "main" {
+                    task.main = Some((module_index, module.funcs.len() - 1));
+                }
+            }
+            _ => {
+                return Err(Error::InvalidKeyword {
                     file: mem::take(&mut module.file),
                     src: mem::take(&mut module.src),
-                    span,
-                });
-            };
-            module.imports.push(*include);
+                    span: keyword_span.clone(),
+                })
+            }
         }
-        for static_index in 0..statics_len {
-            gen_static_intermediary(task, module_index, static_index)?;
-        }
-        for func_index in 0..funcs_len {
-            gen_scope_intermediary(task, module_index, func_index)?;
-        }
-        Ok(())
     }
+    if main && task.main.is_none() {
+        return Err(Error::NoMainFound {
+            file: mem::take(&mut module.file),
+        });
+    }
+    Ok(())
+}
+
+fn gen_intermediary(task: &mut CompileTask, module_index: usize) -> Result<()> {
+    let module = &mut task.modules[module_index];
+    let statics_len = module.statics.len();
+    let funcs_len = module.funcs.len();
+    for import in module.unresolved_imports.drain(..) {
+        let Node::Ident { span } = import.node else {unreachable!()};
+        let name = &module.src[span.clone()];
+        let Some(include) = task.module_indices.get(name) else {
+            return Err(Error::UnknownModule {
+                file: mem::take(&mut module.file),
+                src: mem::take(&mut module.src),
+                span,
+            });
+        };
+        module.imports.push(*include);
+    }
+    for static_index in 0..statics_len {
+        gen_static_intermediary(task, module_index, static_index)?;
+    }
+    for func_index in 0..funcs_len {
+        gen_scope_intermediary(task, module_index, func_index)?;
+    }
+    Ok(())
 }
 
 fn gen_static_intermediary(

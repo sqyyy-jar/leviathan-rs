@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     fmt::Debug,
     io::{Seek, SeekFrom, Write},
+    mem::transmute,
 };
 
 use byteorder::{LittleEndian, WriteBytesExt};
@@ -29,21 +30,28 @@ pub mod error;
 pub mod intermediary;
 pub mod mod_type;
 
-pub const MODULE_TYPES: Map<&'static str, &dyn ModuleType> = phf_map! {
-    "assembly" => &AssemblyLanguage,
-    "code" => &CodeLanguage,
+pub const MODULE_TYPES: Map<&str, fn() -> Box<dyn ModuleType>> = phf_map! {
+    "assembly" => || { Box::new(AssemblyLanguage) },
+    "code" => || { Box::new(CodeLanguage) },
 };
 
 pub trait ModuleType {
-    fn collect(
-        &self,
+    fn vtable(&self) -> ModuleVTable;
+}
+
+pub fn cast<T: ModuleType>(src: &mut Box<dyn ModuleType>) -> &mut Box<T> {
+    unsafe { transmute(src) }
+}
+
+#[derive(Clone, Copy)]
+pub struct ModuleVTable {
+    pub collect: fn(
         task: &mut CompileTask,
         module_index: usize,
         module: UncollectedModule,
         main: bool,
-    ) -> Result<()>;
-
-    fn gen_intermediary(&self, task: &mut CompileTask, module_index: usize) -> Result<()>;
+    ) -> Result<()>,
+    pub gen_intermediary: fn(task: &mut CompileTask, module_index: usize) -> Result<()>,
 }
 
 #[derive(Debug)]
@@ -129,9 +137,11 @@ impl CompileTask {
             return Err(Error::UnknownModuleType { file, src, span: ident_span.clone() });
         };
         let module_index = self.modules.len();
-        self.modules.push(Module::new(file, src, *mod_type));
+        let mod_type = mod_type();
+        let vtable = mod_type.vtable();
+        self.modules.push(Module::new(file, src, mod_type));
         self.module_indices.insert(name, self.modules.len() - 1);
-        mod_type.collect(self, module_index, UncollectedModule { root }, main)?;
+        (vtable.collect)(self, module_index, UncollectedModule { root }, main)?;
         self.status = Status::Open;
         Ok(())
     }
@@ -142,9 +152,7 @@ impl CompileTask {
         }
         self.status = Status::Invalid;
         for i in 0..self.modules.len() {
-            let m = &mut self.modules[i];
-            let type_ = m.type_;
-            type_.gen_intermediary(self, i)?;
+            (self.modules[i].type_.vtable().gen_intermediary)(self, i)?;
         }
         self.status = Status::Compiled;
         Ok(())
@@ -520,7 +528,7 @@ pub struct Module {
     pub funcs: Vec<Func>,
     pub static_indices: HashMap<String, usize>,
     pub statics: Vec<Static>,
-    pub type_: &'static dyn ModuleType,
+    pub type_: Box<dyn ModuleType>,
     pub used: bool,
 }
 
@@ -541,7 +549,7 @@ impl Debug for Module {
 }
 
 impl Module {
-    pub fn new(file: String, src: String, type_: &'static dyn ModuleType) -> Self {
+    pub fn new(file: String, src: String, type_: Box<dyn ModuleType>) -> Self {
         Self {
             file,
             src,
