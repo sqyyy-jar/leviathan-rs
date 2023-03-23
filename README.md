@@ -20,4 +20,4 @@ The language currently only supports an assembler mode but will also support a d
 ))
 ```
 
-This program will immediately halt the program.
+This program will immediately halt the runtime.
