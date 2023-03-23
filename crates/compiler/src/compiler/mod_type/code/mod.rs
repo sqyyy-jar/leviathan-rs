@@ -1,15 +1,20 @@
+pub mod keywords;
+
 use std::mem;
 
 use phf::{phf_map, Map};
 
 use crate::{
     compiler::{
+        cast,
         error::{Error, Result},
         CompileTask, Module, ModuleType, ModuleVTable, UncollectedModule,
     },
     parser::Node,
     util::source::Span,
 };
+
+use self::keywords::{r#fn, r#static, r#use};
 
 type KeywordProc = fn(
     task: &mut CompileTask,
@@ -20,12 +25,23 @@ type KeywordProc = fn(
 ) -> Result<()>;
 
 const KEYWORDS: Map<&'static str, KeywordProc> = phf_map! {
-    "use" => |_, _, _, _, _| {todo!()},
-    "static" => |_, _, _, _, _| {todo!()},
-    "fn" => |_, _, _, _, _| {todo!()},
+    "use" => r#use,
+    "static" => r#static,
+    "fn" => r#fn,
 };
 
-pub struct CodeLanguage;
+pub enum CodeLanguage {
+    Collected { imports: Vec<Span> },
+    Intermediary { imports: Vec<usize> },
+}
+
+impl Default for CodeLanguage {
+    fn default() -> Self {
+        Self::Collected {
+            imports: Vec::with_capacity(0),
+        }
+    }
+}
 
 impl ModuleType for CodeLanguage {
     fn vtable(&self) -> ModuleVTable {
@@ -83,8 +99,28 @@ fn collect(
     Ok(())
 }
 
-fn gen_intermediary(_task: &mut CompileTask, _module_index: usize) -> Result<()> {
-    todo!()
+fn gen_intermediary(task: &mut CompileTask, module_index: usize) -> Result<()> {
+    let module = &mut task.modules[module_index];
+    let CodeLanguage::Collected { imports } = cast::<CodeLanguage>(&mut module.type_).as_mut() else {
+        unreachable!()
+    };
+    let imports = mem::replace(imports, Vec::with_capacity(0));
+    let mut new_imports = Vec::with_capacity(imports.len());
+    for import_span in imports {
+        let import = &module.src[import_span.clone()];
+        let Some(import) = task.module_indices.get(import) else {
+            return Err(Error::UnknownModule {
+                file: take_file(module),
+                src: take_src(module),
+                span: import_span,
+            });
+        };
+        new_imports.push(*import);
+    }
+    module.type_ = Box::new(CodeLanguage::Intermediary {
+        imports: new_imports,
+    });
+    Ok(())
 }
 
 fn take_file(module: &mut Module) -> String {

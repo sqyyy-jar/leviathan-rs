@@ -61,6 +61,11 @@ pub enum Error {
         src: String,
         span: Span,
     },
+    DuplicateImport {
+        file: String,
+        src: String,
+        span: Span,
+    },
     UnknownModule {
         file: String,
         src: String,
@@ -179,6 +184,11 @@ impl Error {
             }
             Error::DuplicateName { file, src, span } => {
                 report = span_error_report(file, span, "This name is already in use");
+                source = Source::from(src);
+                file
+            }
+            Error::DuplicateImport { file, src, span } => {
+                report = span_error_report(file, span, "This module is already imported");
                 source = Source::from(src);
                 file
             }

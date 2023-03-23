@@ -31,8 +31,8 @@ pub mod intermediary;
 pub mod mod_type;
 
 pub const MODULE_TYPES: Map<&str, fn() -> Box<dyn ModuleType>> = phf_map! {
-    "assembly" => || { Box::new(AssemblyLanguage) },
-    "code" => || { Box::new(CodeLanguage) },
+    "assembly" => || Box::new(AssemblyLanguage),
+    "code" => || Box::<CodeLanguage>::default(),
 };
 
 pub trait ModuleType {
