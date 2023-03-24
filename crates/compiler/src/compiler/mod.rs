@@ -11,7 +11,7 @@ use urban_common::{
     binary::EXECUTABLE,
     opcodes::{
         L0_ADD, L0_BRANCH, L0_BRANCH_EQ, L0_BRANCH_GE, L0_BRANCH_GT, L0_BRANCH_L, L0_BRANCH_LE,
-        L0_BRANCH_LT, L0_BRANCH_NE, L0_BRANCH_NZ, L0_BRANCH_ZR, L0_LDR, L4_BRANCH, L4_LDBO,
+        L0_BRANCH_LT, L0_BRANCH_NE, L0_BRANCH_NZ, L0_BRANCH_ZR, L0_LDR, L4_LDBO, L5_RET,
     },
 };
 
@@ -290,7 +290,7 @@ impl CompileTask {
                             ptr += 4;
                         }
                         Insn::Ret => {
-                            out.write_u32::<LittleEndian>(L4_BRANCH | 30)?;
+                            out.write_u32::<LittleEndian>(L5_RET)?;
                             ptr += 4;
                         }
                         Insn::CreatePoint { pos } => {
