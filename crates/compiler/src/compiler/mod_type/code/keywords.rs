@@ -2,9 +2,9 @@ use crate::{
     compiler::{
         cast,
         error::{Error, Result},
-        CompileTask, Static, StaticData,
+        CompileTask, Module, Static, StaticData, Type,
     },
-    parser::Node,
+    parser::{BracketType, Node},
     util::source::Span,
 };
 
@@ -109,11 +109,83 @@ pub fn collect_static(
 }
 
 pub fn collect_fn(
-    _task: &mut CompileTask,
-    _module_index: usize,
+    task: &mut CompileTask,
+    module_index: usize,
     _main_module: bool,
-    _span: Span,
-    _nodes: Vec<Node>,
+    span: Span,
+    nodes: Vec<Node>,
 ) -> Result<()> {
+    let module = &mut task.modules[module_index];
+    let node_count = nodes.len();
+    if !(4..=5).contains(&node_count) {
+        return Err(Error::InvalidStatement {
+            file: take_file(module),
+            src: take_src(module),
+            span,
+        });
+    }
+    let mut nodes = nodes.into_iter();
+    let Node::Ident { span: keyword_span } = nodes.next().unwrap() else {
+        unreachable!()
+    };
+    let public = module.src[keyword_span].ends_with('!');
+    let name_node = nodes.next().unwrap();
+    let Node::Ident { span: name_span } = name_node else {
+        return Err(Error::UnexpectedToken {
+            file: take_file(module),
+            src: take_src(module),
+            span: name_node.span(),
+        });
+    };
+    let params_node = nodes.next().unwrap();
+    let Node::Node {
+        span: params_span,
+        type_: BracketType::Square,
+        sub_nodes: param_nodes,
+    } = params_node else
+    {
+        return Err(Error::UnexpectedToken {
+            file: take_file(module),
+            src: take_src(module),
+            span: params_node.span(),
+        });
+    };
+    if param_nodes.len() % 2 != 0 {
+        return Err(Error::InvalidParams {
+            file: take_file(module),
+            src: take_src(module),
+            span: params_span,
+        });
+    }
+    let return_type = if node_count == 5 {
+        let return_node = nodes.next().unwrap();
+        let Node::Ident { span: return_span } = return_node else {
+            return Err(Error::UnexpectedToken {
+                file: take_file(module),
+                src: take_src(module),
+                span: return_node.span(),
+            });
+        };
+        parse_type(module, return_span)?
+    } else {
+        Type::Unit
+    };
+    let expr_node = nodes.next().unwrap();
     todo!()
+}
+
+fn parse_type(module: &mut Module, span: Span) -> Result<Type> {
+    match &module.src[span.clone()] {
+        "unit" => Ok(Type::Unit),
+        "int" => Ok(Type::Int),
+        "uint" => Ok(Type::UInt),
+        "float" => Ok(Type::Float),
+        "str" => Ok(Type::String),
+        "ptr" => todo!(),
+        _ => Err(Error::InvalidType {
+            file: take_file(module),
+            src: take_src(module),
+            span,
+        }),
+    }
 }

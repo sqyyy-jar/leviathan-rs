@@ -2,7 +2,7 @@ use crate::util::source::{Source, Span};
 
 use super::{
     error::{Error, Result},
-    Token, TokenList,
+    BracketType, Token, TokenList,
 };
 
 pub fn tokenize(name: String, file: String, src: String) -> Result<TokenList> {
@@ -34,7 +34,7 @@ pub fn tokenize(name: String, file: String, src: String) -> Result<TokenList> {
                     source.eat();
                 }
             }
-            '(' => {
+            '(' | '[' | '{' => {
                 let index = source.index;
                 source.eat();
                 if g_len > 0 || g_token {
@@ -45,11 +45,12 @@ pub fn tokenize(name: String, file: String, src: String) -> Result<TokenList> {
                         span: index..source_index,
                     });
                 }
-                tokens.push(Token::LeftParen {
+                tokens.push(Token::LeftBracket {
                     span: index..source.index,
+                    type_: BracketType::from(c),
                 });
             }
-            ')' => {
+            ')' | ']' | '}' => {
                 let index = source.index;
                 if g_len > 0 {
                     let Some(token) = parse_token(g_index..g_index + g_len, &mut source) else {
@@ -64,8 +65,9 @@ pub fn tokenize(name: String, file: String, src: String) -> Result<TokenList> {
                 }
                 g_token = true;
                 source.eat();
-                tokens.push(Token::RightParen {
+                tokens.push(Token::RightBracket {
                     span: index..source.index,
+                    type_: BracketType::from(c),
                 });
             }
             '"' => {

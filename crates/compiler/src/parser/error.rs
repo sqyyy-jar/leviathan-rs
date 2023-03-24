@@ -2,7 +2,10 @@ use std::process::exit;
 
 use ariadne::Source;
 
-use crate::util::{ariadne::span_error_report, source::Span};
+use crate::util::{
+    ariadne::{span_double_error_report, span_error_report},
+    source::Span,
+};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -42,6 +45,12 @@ pub enum Error {
         file: String,
         src: String,
         span: Span,
+    },
+    MissmatchBrackets {
+        file: String,
+        src: String,
+        span_a: Span,
+        span_b: Span,
     },
 }
 
@@ -83,6 +92,22 @@ impl Error {
             }
             Error::InvalidUtf8 { file, src, span } => {
                 report = span_error_report(file, span, "This is invalid Utf8");
+                source = Source::from(src);
+                file
+            }
+            Error::MissmatchBrackets {
+                file,
+                src,
+                span_a,
+                span_b,
+            } => {
+                report = span_double_error_report(
+                    file,
+                    span_a,
+                    span_b,
+                    "start",
+                    "end - These brackets do not match",
+                );
                 source = Source::from(src);
                 file
             }

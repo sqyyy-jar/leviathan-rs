@@ -56,6 +56,21 @@ pub enum Error {
         src: String,
         span: Span,
     },
+    InvalidType {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    InvalidBracketType {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    InvalidParams {
+        file: String,
+        src: String,
+        span: Span,
+    },
     DuplicateName {
         file: String,
         src: String,
@@ -179,6 +194,21 @@ impl Error {
             }
             Error::InvalidStatement { file, src, span } => {
                 report = span_error_report(file, span, "This statement is not valid");
+                source = Source::from(src);
+                file
+            }
+            Error::InvalidType { file, src, span } => {
+                report = span_error_report(file, span, "This type is not valid");
+                source = Source::from(src);
+                file
+            }
+            Error::InvalidBracketType { file, src, span } => {
+                report = span_error_report(file, span, "This bracket type is not allowed here");
+                source = Source::from(src);
+                file
+            }
+            Error::InvalidParams { file, src, span } => {
+                report = span_error_report(file, span, "These function parameters are not valid");
                 source = Source::from(src);
                 file
             }

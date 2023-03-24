@@ -10,7 +10,7 @@ use crate::{
         error::{Error, Result},
         CompileTask, Module, ModuleType, ModuleVTable, UncollectedModule,
     },
-    parser::Node,
+    parser::{BracketType, Node},
     util::source::Span,
 };
 
@@ -28,6 +28,7 @@ const KEYWORDS: Map<&'static str, KeywordProc> = phf_map! {
     "use" => collect_use,
     "static" => collect_static,
     "fn" => collect_fn,
+    "fn!" => collect_fn,
 };
 
 pub enum CodeLanguage {
@@ -59,9 +60,10 @@ fn collect(
     main_module: bool,
 ) -> Result<()> {
     let mut module = &mut task.modules[module_index];
-    for stmnt in root {
+    for stmnt in root.into_iter().skip(1) {
         let Node::Node {
             span: stmnt_span,
+            type_: BracketType::Round,
             sub_nodes: stmnt_nodes,
         } = stmnt else
         {

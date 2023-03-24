@@ -22,8 +22,8 @@ pub struct BareModule {
 
 #[derive(Debug)]
 pub enum Token {
-    LeftParen { span: Span },
-    RightParen { span: Span },
+    LeftBracket { span: Span, type_: BracketType },
+    RightBracket { span: Span, type_: BracketType },
     Ident { span: Span },
     Int { span: Span, value: i64 },
     UInt { span: Span, value: u64 },
@@ -34,8 +34,8 @@ pub enum Token {
 impl Token {
     pub fn span(&self) -> Span {
         match self {
-            Token::LeftParen { span }
-            | Token::RightParen { span }
+            Token::LeftBracket { span, .. }
+            | Token::RightBracket { span, .. }
             | Token::Ident { span }
             | Token::Int { span, .. }
             | Token::UInt { span, .. }
@@ -47,12 +47,30 @@ impl Token {
 
 #[derive(Debug)]
 pub enum Node {
-    Ident { span: Span },
-    Int { span: Span, value: i64 },
-    UInt { span: Span, value: u64 },
-    Float { span: Span, value: f64 },
-    String { span: Span, value: String },
-    Node { span: Span, sub_nodes: Vec<Node> },
+    Ident {
+        span: Span,
+    },
+    Int {
+        span: Span,
+        value: i64,
+    },
+    UInt {
+        span: Span,
+        value: u64,
+    },
+    Float {
+        span: Span,
+        value: f64,
+    },
+    String {
+        span: Span,
+        value: String,
+    },
+    Node {
+        span: Span,
+        type_: BracketType,
+        sub_nodes: Vec<Node>,
+    },
 }
 
 impl Node {
@@ -64,6 +82,24 @@ impl Node {
             | Node::Float { span, .. }
             | Node::String { span, .. }
             | Node::Node { span, .. } => span.clone(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum BracketType {
+    Round,
+    Square,
+    Curly,
+}
+
+impl From<char> for BracketType {
+    fn from(value: char) -> Self {
+        match value {
+            '(' | ')' => Self::Round,
+            '[' | ']' => Self::Square,
+            '{' | '}' => Self::Curly,
+            _ => panic!(),
         }
     }
 }

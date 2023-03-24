@@ -16,7 +16,7 @@ use urban_common::{
 };
 
 use crate::{
-    parser::{BareModule, Node},
+    parser::{BareModule, BracketType, Node},
     util::{align, alignment},
 };
 
@@ -96,6 +96,7 @@ impl CompileTask {
         }
         let Node::Node {
             span: mod_decl_span,
+            type_: BracketType::Round,
             sub_nodes: mod_sub_nodes,
         } = &root[0] else
         {
@@ -599,7 +600,7 @@ pub enum StaticData {
 
 #[derive(Debug)]
 pub enum Type {
-    None,
+    Unit,
     Int,
     UInt,
     Float,

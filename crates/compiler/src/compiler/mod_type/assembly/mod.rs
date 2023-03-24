@@ -14,7 +14,7 @@ use crate::{
         CompileTask, Func, FuncData, Import, ModuleType, ModuleVTable, Static, StaticData, Type,
         UncollectedModule,
     },
-    parser::Node,
+    parser::{BracketType, Node},
     util::source::Span,
 };
 
@@ -41,7 +41,12 @@ fn collect(
     let mut nodes = root.into_iter();
     nodes.next().unwrap();
     for node in nodes {
-        let Node::Node { span, mut sub_nodes } = node else {
+        let Node::Node {
+            span,
+            type_: BracketType::Round,
+            mut sub_nodes,
+        } = node else
+        {
             panic!("Invalid AST");
         };
         if sub_nodes.is_empty() {
@@ -237,7 +242,18 @@ fn gen_static_intermediary(
             };
             Ok(())
         }
-        Node::Node { span, sub_nodes } => {
+        Node::Node {
+            span,
+            type_,
+            sub_nodes,
+        } => {
+            if type_ != BracketType::Round {
+                return Err(Error::InvalidBracketType {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            }
             if sub_nodes.is_empty() {
                 return Err(Error::EmptyNode {
                     file: mem::take(&mut module.file),
@@ -389,7 +405,18 @@ fn gen_scope_intermediary(
             *data = FuncData::Intermediary { ir };
             Ok(())
         }
-        Node::Node { span, sub_nodes } => {
+        Node::Node {
+            span,
+            type_,
+            sub_nodes,
+        } => {
+            if type_ != BracketType::Round {
+                return Err(Error::InvalidBracketType {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            }
             gen_scope_node_intermediary(task, module_index, &mut ir, sub_nodes, span, 0)?;
             task.modules[module_index].funcs[func_index].data = FuncData::Intermediary { ir };
             Ok(())
@@ -513,7 +540,18 @@ fn gen_scope_node_intermediary(
                             index: module.statics.len() - 1,
                         });
                     }
-                    Node::Node { span, sub_nodes } => {
+                    Node::Node {
+                        span,
+                        type_,
+                        sub_nodes,
+                    } => {
+                        if type_ != BracketType::Round {
+                            return Err(Error::InvalidBracketType {
+                                file: mem::take(&mut module.file),
+                                src: mem::take(&mut module.src),
+                                span,
+                            });
+                        }
                         gen_scope_node_intermediary(
                             task,
                             module_index,
@@ -595,13 +633,20 @@ fn gen_scope_node_intermediary(
                 }
             }
             let expr = sub_nodes.pop().unwrap();
-            let Node::Node { span, sub_nodes } = expr else {
+            let Node::Node { span, type_, sub_nodes } = expr else {
                 return Err(Error::UnexpectedToken {
                     file: mem::take(&mut module.file),
                     src: mem::take(&mut module.src),
                     span: expr.span(),
                 });
             };
+            if type_ != BracketType::Round {
+                return Err(Error::InvalidBracketType {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            }
             gen_scope_node_intermediary(task, module_index, ir, sub_nodes, span, depth + 1)?;
             ir.push(Insn::CreatePoint { pos });
             if depth == 0 {
@@ -676,13 +721,20 @@ fn gen_scope_node_intermediary(
                 }
             };
             let expr = sub_nodes.pop().unwrap();
-            let Node::Node { span, sub_nodes } = expr else {
+            let Node::Node { span, type_, sub_nodes } = expr else {
                 return Err(Error::UnexpectedToken {
                     file: mem::take(&mut module.file),
                     src: mem::take(&mut module.src),
                     span: expr.span(),
                 });
             };
+            if type_ != BracketType::Round {
+                return Err(Error::InvalidBracketType {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            }
             gen_scope_node_intermediary(task, module_index, ir, sub_nodes, span, depth + 1)?;
             ir.push(Insn::CreatePoint { pos: cond_pos });
             ir.push(insn);
@@ -756,13 +808,20 @@ fn gen_scope_node_intermediary(
                 }
             };
             let expr = sub_nodes.remove(1);
-            let Node::Node { span, sub_nodes } = expr else {
+            let Node::Node { span, type_, sub_nodes } = expr else {
                 return Err(Error::UnexpectedToken {
                     file: mem::take(&mut module.file),
                     src: mem::take(&mut module.src),
                     span: expr.span(),
                 });
             };
+            if type_ != BracketType::Round {
+                return Err(Error::InvalidBracketType {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            }
             gen_scope_node_intermediary(task, module_index, ir, sub_nodes, span, depth + 1)?;
             ir.push(insn);
             if depth == 0 {
