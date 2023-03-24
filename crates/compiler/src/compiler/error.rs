@@ -173,12 +173,12 @@ impl Error {
                 file
             }
             Error::InvalidKeyword { file, src, span } => {
-                report = span_error_report(file, span, "This keyword not valid");
+                report = span_error_report(file, span, "This keyword is not valid");
                 source = Source::from(src);
                 file
             }
             Error::InvalidStatement { file, src, span } => {
-                report = span_error_report(file, span, "This statement not valid");
+                report = span_error_report(file, span, "This statement is not valid");
                 source = Source::from(src);
                 file
             }

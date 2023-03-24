@@ -260,7 +260,7 @@ impl CompileTask {
                                     static_index: *index,
                                 });
                             }
-                            out.write_u32::<LittleEndian>(L4_LDBO)?;
+                            out.write_u32::<LittleEndian>(L4_LDBO | *dst as u32)?;
                             ptr += 4;
                             if i != 0 || *index != 0 {
                                 out.write_u32::<LittleEndian>(0)?;
