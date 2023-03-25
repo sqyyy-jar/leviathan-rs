@@ -145,7 +145,9 @@ fn collect(
                     public,
                     params: vec![(None, Type::Unknown)],
                     return_: Type::Unknown,
-                    data: FuncData::Collected { nodes: sub_nodes },
+                    data: FuncData::Collected {
+                        node: sub_nodes.pop().unwrap(),
+                    },
                     used: false,
                 });
                 module
@@ -297,10 +299,16 @@ fn gen_scope_intermediary(
         data,
         used: _,
     } = &mut module.funcs[func_index];
-    let FuncData::Collected { nodes } = data else {unreachable!()};
+    let FuncData::Collected { node } = mem::replace(
+        data,
+        FuncData::Intermediary {
+            ir: Vec::with_capacity(0),
+        },
+    ) else {
+        unreachable!()
+    };
     let mut ir = Vec::with_capacity(0);
-    let expr = nodes.pop().unwrap();
-    match expr {
+    match node {
         Node::Ident { span } => {
             let name = &module.src[span.clone()];
             let Some(static_index) = module.static_indices.get(name) else {
@@ -339,7 +347,7 @@ fn gen_scope_intermediary(
             Ok(())
         }
         Node::Int { .. } | Node::UInt { .. } | Node::Float { .. } => {
-            match expr {
+            match node {
                 Node::Int { value, .. } => {
                     if (-(1 << 22)..((1 << 22) - 1)).contains(&value) {
                         ir.push(Insn::Raw(L0_MOVS | value as u32 & ((1 << 22) - 1)));

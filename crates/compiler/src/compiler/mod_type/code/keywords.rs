@@ -2,7 +2,7 @@ use crate::{
     compiler::{
         cast,
         error::{Error, Result},
-        CompileTask, Module, Static, StaticData, Type,
+        CompileTask, Func, FuncData, Module, Static, StaticData, Type,
     },
     parser::{BracketType, Node},
     util::source::Span,
@@ -150,14 +150,45 @@ pub fn collect_fn(
             span: params_node.span(),
         });
     };
-    if param_nodes.len() % 2 != 0 {
+    let param_count = param_nodes.len();
+    if param_count % 2 != 0 {
         return Err(Error::InvalidParams {
             file: take_file(module),
             src: take_src(module),
             span: params_span,
         });
     }
-    let return_type = if node_count == 5 {
+    let mut param_nodes = param_nodes.into_iter();
+    let mut params = Vec::with_capacity(param_count / 2);
+    for _ in 0..param_count / 2 {
+        let param_name_node = param_nodes.next().unwrap();
+        let Node::Ident { span: param_name_span } = param_name_node else {
+            return Err(Error::InvalidParams {
+                file: take_file(module),
+                src: take_src(module),
+                span: param_name_node.span(),
+            });
+        };
+        let Some(param_name) = &module.src[param_name_span.clone()].strip_prefix(':') else {
+            return Err(Error::InvalidParams {
+                file: take_file(module),
+                src: take_src(module),
+                span: param_name_span,
+            });
+        };
+        let param_name = param_name.to_string();
+        let param_type_node = param_nodes.next().unwrap();
+        let Node::Ident { span: param_type_span } = param_type_node else {
+            return Err(Error::InvalidParams {
+                file: take_file(module),
+                src: take_src(module),
+                span: param_type_node.span(),
+            });
+        };
+        let param_type = parse_type(module, param_type_span)?;
+        params.push((Some(param_name), param_type));
+    }
+    let return_ = if node_count == 5 {
         let return_node = nodes.next().unwrap();
         let Node::Ident { span: return_span } = return_node else {
             return Err(Error::UnexpectedToken {
@@ -171,6 +202,13 @@ pub fn collect_fn(
         Type::Unit
     };
     let expr_node = nodes.next().unwrap();
+    module.funcs.push(Func {
+        public,
+        params,
+        return_,
+        data: FuncData::Collected { node: expr_node },
+        used: false,
+    });
     todo!()
 }
 

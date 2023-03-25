@@ -588,7 +588,7 @@ pub struct Static {
 
 #[derive(Debug)]
 pub enum FuncData {
-    Collected { nodes: Vec<Node> },
+    Collected { node: Node },
     Intermediary { ir: Vec<Insn> },
 }
 
