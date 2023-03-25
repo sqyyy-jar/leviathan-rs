@@ -8,7 +8,8 @@ use crate::{
     compiler::{
         cast,
         error::{Error, Result},
-        CompileTask, Module, ModuleType, ModuleVTable, UncollectedModule,
+        intermediary::IntermediaryStaticValue,
+        CompileTask, Module, ModuleType, ModuleVTable, StaticData, UncollectedModule,
     },
     parser::{BracketType, Node},
     util::source::Span,
@@ -122,7 +123,40 @@ fn gen_intermediary(task: &mut CompileTask, module_index: usize) -> Result<()> {
     module.type_ = Box::new(CodeLanguage::Intermediary {
         imports: new_imports,
     });
-    Ok(())
+    for i in 0..module.statics.len() {
+        let static_ = &mut module.statics[i];
+        let StaticData::Collected { node } = mem::replace(
+            &mut static_.data,
+            StaticData::Intermediary {
+                value: IntermediaryStaticValue::Int(0),
+            },
+        ) else {
+            unreachable!()
+        };
+        let value = gen_static_intermediary(module, node)?;
+        module.statics[i].data = StaticData::Intermediary { value };
+    }
+    todo!();
+    // Ok(())
+}
+
+fn gen_static_intermediary(module: &mut Module, node: Node) -> Result<IntermediaryStaticValue> {
+    match node {
+        Node::Ident { span } => Err(Error::UnexpectedToken {
+            file: take_file(module),
+            src: take_src(module),
+            span,
+        }),
+        Node::Int { value, .. } => Ok(IntermediaryStaticValue::Int(value)),
+        Node::UInt { value, .. } => Ok(IntermediaryStaticValue::UInt(value)),
+        Node::Float { value, .. } => Ok(IntermediaryStaticValue::Float(value)),
+        Node::String { value, .. } => Ok(IntermediaryStaticValue::String(value)),
+        Node::Node {
+            span: _,
+            type_: _,
+            sub_nodes: _,
+        } => todo!(),
+    }
 }
 
 fn take_file(module: &mut Module) -> String {

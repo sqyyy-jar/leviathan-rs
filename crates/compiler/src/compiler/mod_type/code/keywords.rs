@@ -137,6 +137,15 @@ pub fn collect_fn(
             span: name_node.span(),
         });
     };
+    let name = &module.src[name_span.clone()];
+    if module.func_indices.contains_key(name) {
+        return Err(Error::DuplicateName {
+            file: take_file(module),
+            src: take_src(module),
+            span: name_span,
+        });
+    }
+    let name = name.to_string();
     let params_node = nodes.next().unwrap();
     let Node::Node {
         span: params_span,
@@ -209,7 +218,8 @@ pub fn collect_fn(
         data: FuncData::Collected { node: expr_node },
         used: false,
     });
-    todo!()
+    module.func_indices.insert(name, module.funcs.len() - 1);
+    Ok(())
 }
 
 fn parse_type(module: &mut Module, span: Span) -> Result<Type> {
