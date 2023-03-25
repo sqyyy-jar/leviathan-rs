@@ -8,8 +8,9 @@ use crate::{
     compiler::{
         cast,
         error::{Error, Result},
-        intermediary::IntermediaryStaticValue,
-        CompileTask, Module, ModuleType, ModuleVTable, StaticData, UncollectedModule,
+        intermediary::{Insn, IntermediaryStaticValue},
+        CompileTask, Func, FuncData, Module, ModuleType, ModuleVTable, StaticData,
+        UncollectedModule,
     },
     parser::{BracketType, Node},
     util::source::Span,
@@ -103,7 +104,7 @@ fn collect(
 }
 
 fn gen_intermediary(task: &mut CompileTask, module_index: usize) -> Result<()> {
-    let module = &mut task.modules[module_index];
+    let mut module = &mut task.modules[module_index];
     let CodeLanguage::Collected { imports } = cast::<CodeLanguage>(&mut module.type_).as_mut() else {
         unreachable!()
     };
@@ -136,8 +137,19 @@ fn gen_intermediary(task: &mut CompileTask, module_index: usize) -> Result<()> {
         let value = gen_static_intermediary(module, node)?;
         module.statics[i].data = StaticData::Intermediary { value };
     }
-    todo!();
-    // Ok(())
+    for i in 0..module.funcs.len() {
+        let Func { data, .. } = &mut module.funcs[i];
+        let FuncData::Collected { node } = mem::replace(
+            data,
+            FuncData::Intermediary {
+                ir: Vec::with_capacity(0),
+            },
+        ) else {unreachable!()};
+        let ir = gen_expr_intermediary(task, module_index, node)?;
+        module = &mut task.modules[module_index];
+        module.funcs[i].data = FuncData::Intermediary { ir };
+    }
+    Ok(())
 }
 
 fn gen_static_intermediary(module: &mut Module, node: Node) -> Result<IntermediaryStaticValue> {
@@ -157,6 +169,14 @@ fn gen_static_intermediary(module: &mut Module, node: Node) -> Result<Intermedia
             sub_nodes: _,
         } => todo!(),
     }
+}
+
+fn gen_expr_intermediary(
+    _task: &mut CompileTask,
+    _module_index: usize,
+    _expr: Node,
+) -> Result<Vec<Insn>> {
+    todo!()
 }
 
 fn take_file(module: &mut Module) -> String {
