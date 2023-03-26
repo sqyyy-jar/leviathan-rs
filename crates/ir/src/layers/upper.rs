@@ -1,5 +1,7 @@
 use crate::Span;
 
+use super::ModuleCoord;
+
 pub struct UpperLayer {
     pub block: CodeBlock,
 }
@@ -30,7 +32,11 @@ pub enum CodeElement {
         span: Span,
         expr: Expr,
     },
-    Call {},
+    Call {
+        span: Span,
+        coord: ModuleCoord,
+        params: Vec<Expr>,
+    },
 }
 
 pub enum Condition {
@@ -77,7 +83,10 @@ pub enum Condition {
 }
 
 pub enum Expr {
-    Static {},
+    Static {
+        span: Span,
+        coord: ModuleCoord,
+    },
     Variable {},
     Int {
         span: Span,
@@ -115,5 +124,9 @@ pub enum Expr {
         lhs: Box<Expr>,
         rhs: Box<Expr>,
     },
-    Call {},
+    Call {
+        span: Span,
+        coord: ModuleCoord,
+        params: Vec<Expr>,
+    },
 }
