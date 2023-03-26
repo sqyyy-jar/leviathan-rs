@@ -1,29 +1,37 @@
 use crate::Span;
 
-use super::ModuleCoord;
+use super::{ModuleCoord, Type};
 
-pub struct UpperLayer {
-    pub block: CodeBlock,
+pub enum UpperLayer {
+    Expr { expr: Expr },
+    Block { vars: Vec<Type>, block: CodeBlock },
 }
 
 pub struct CodeBlock {
     pub span: Span,
-    pub elements: Vec<CodeElement>,
+    pub elements: Vec<Stmnt>,
 }
 
-pub enum CodeElement {
+pub enum Stmnt {
     If {
         span: Span,
-        cond: Condition,
+        cond: Cond,
         block: CodeBlock,
     },
     While {
         span: Span,
-        cond: Condition,
+        cond: Cond,
         block: CodeBlock,
     },
-    For {},
-    Let {},
+    For {
+        span: Span,
+        // TODO
+    },
+    Let {
+        span: Span,
+        name: Span,
+        expr: Expr,
+    },
     Return {
         span: Span,
         expr: Option<Expr>,
@@ -39,7 +47,93 @@ pub enum CodeElement {
     },
 }
 
-pub enum Condition {
+pub enum Expr {
+    Static {
+        span: Span,
+        coord: ModuleCoord,
+    },
+    Variable {
+        span: Span,
+        index: usize,
+    },
+    Int {
+        span: Span,
+        value: i64,
+    },
+    UInt {
+        span: Span,
+        value: u64,
+    },
+    Float {
+        span: Span,
+        value: f64,
+    },
+    String {
+        span: Span,
+        value: String,
+    },
+    Add {
+        span: Span,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    Sub {
+        span: Span,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    Mul {
+        span: Span,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    Div {
+        span: Span,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    BitAnd {
+        span: Span,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    BitOr {
+        span: Span,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    BitXor {
+        span: Span,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    ShiftLeft {
+        span: Span,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    ShiftRight {
+        span: Span,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    SignedShiftRight {
+        span: Span,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    BitNot {
+        span: Span,
+        expr: Box<Expr>,
+    },
+    Call {
+        span: Span,
+        coord: ModuleCoord,
+        params: Vec<Expr>,
+    },
+}
+
+pub enum Cond {
     Equal {
         span: Span,
         lhs: Box<Expr>,
@@ -72,61 +166,12 @@ pub enum Condition {
     },
     And {
         span: Span,
-        a: Box<Condition>,
-        b: Box<Condition>,
+        a: Box<Cond>,
+        b: Box<Cond>,
     },
     Or {
         span: Span,
-        a: Box<Condition>,
-        b: Box<Condition>,
-    },
-}
-
-pub enum Expr {
-    Static {
-        span: Span,
-        coord: ModuleCoord,
-    },
-    Variable {},
-    Int {
-        span: Span,
-        value: i64,
-    },
-    UInt {
-        span: Span,
-        value: u64,
-    },
-    Float {
-        span: Span,
-        value: f64,
-    },
-    String {
-        span: Span,
-        value: String,
-    },
-    Addition {
-        span: Span,
-        lhs: Box<Expr>,
-        rhs: Box<Expr>,
-    },
-    Subtraction {
-        span: Span,
-        lhs: Box<Expr>,
-        rhs: Box<Expr>,
-    },
-    Multiplication {
-        span: Span,
-        lhs: Box<Expr>,
-        rhs: Box<Expr>,
-    },
-    Division {
-        span: Span,
-        lhs: Box<Expr>,
-        rhs: Box<Expr>,
-    },
-    Call {
-        span: Span,
-        coord: ModuleCoord,
-        params: Vec<Expr>,
+        a: Box<Cond>,
+        b: Box<Cond>,
     },
 }
