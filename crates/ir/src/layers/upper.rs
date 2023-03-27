@@ -1,22 +1,17 @@
 use crate::Span;
 
-use super::{ModuleCoord, Type};
+use super::{Coord, Type};
 
 pub enum UpperLayer {
-    Expr {
-        expr: Expr,
-    },
-    Block {
-        vars: Vec<Variable>,
-        block: CodeBlock,
-    },
+    Expr { expr: Expr },
+    Block { vars: Vec<Var>, block: Block },
 }
 
-pub struct Variable {
+pub struct Var {
     pub type_: Type,
 }
 
-pub struct CodeBlock {
+pub struct Block {
     pub span: Span,
     pub elements: Vec<Stmnt>,
 }
@@ -25,12 +20,12 @@ pub enum Stmnt {
     If {
         span: Span,
         cond: Cond,
-        block: CodeBlock,
+        block: Block,
     },
     While {
         span: Span,
         cond: Cond,
-        block: CodeBlock,
+        block: Block,
     },
     For {
         span: Span,
@@ -52,7 +47,7 @@ pub enum Stmnt {
     },
     Call {
         span: Span,
-        coord: ModuleCoord,
+        coord: Coord,
         params: Vec<Expr>,
     },
 }
@@ -60,7 +55,7 @@ pub enum Stmnt {
 pub enum Expr {
     Static {
         span: Span,
-        coord: ModuleCoord,
+        coord: Coord,
     },
     Variable {
         span: Span,
@@ -143,7 +138,7 @@ pub enum Expr {
     },
     Call {
         span: Span,
-        coord: ModuleCoord,
+        coord: Coord,
         params: Vec<Expr>,
     },
 }

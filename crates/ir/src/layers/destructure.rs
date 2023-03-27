@@ -1,57 +1,19 @@
 use super::{
-    upper::{Expr, Variable},
-    ModuleCoord,
+    upper::{Cond, Expr, Var},
+    Coord,
 };
 
 pub struct DestructureLayer {
-    pub variables: Vec<Variable>,
+    pub variables: Vec<Var>,
     pub ops: Vec<Op>,
 }
 
 pub enum Op {
-    PutCoord {
-        coord: usize,
-    },
-    BranchCoord {
-        coord: usize,
-    },
-    BranchCoordIfNonZero {
-        coord: usize,
-    },
-    BranchCoordIfZero {
-        coord: usize,
-    },
-    BranchCoordEqual {
-        coord: usize,
-    },
-    BranchCoordNonEqual {
-        coord: usize,
-    },
-    BranchCoordLess {
-        coord: usize,
-    },
-    BranchCoordGreater {
-        coord: usize,
-    },
-    BranchCoordLessEqual {
-        coord: usize,
-    },
-    BranchCoordGreaterEqual {
-        coord: usize,
-    },
-    Let {
-        index: usize,
-        expr: Expr,
-    },
-    Return {
-        expr: Option<Expr>,
-    },
-    Assign {
-        index: usize,
-        expr: Expr,
-    },
-    Call {
-        coord: ModuleCoord,
-        params: Vec<Expr>,
-    },
+    PutCoord { coord: usize },
+    BranchCoord { coord: usize },
+    BranchCoordCond { coord: usize, cond: Cond },
+    Let { index: usize, expr: Expr },
+    Return { expr: Option<Expr> },
+    Assign { index: usize, expr: Expr },
+    Call { coord: Coord, params: Vec<Expr> },
 }

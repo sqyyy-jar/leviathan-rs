@@ -1,3 +1,5 @@
+use super::upper::Cond;
+
 pub struct LowerLayer {
     pub ops: Vec<LowOp>,
 }
@@ -19,6 +21,9 @@ impl Reg {
 }
 
 pub enum LowOp {
+    PutCoord { coord: usize },
+    BranchCoord { coord: usize },
+    BranchCoordCond { coord: usize, cond: Cond },
     AddImmediate { dst: Reg, src: Reg, immediate: u32 },
     SubImmediate { dst: Reg, src: Reg, immediate: u32 },
     MulImmediate { dst: Reg, src: Reg, immediate: u32 },

@@ -2,7 +2,7 @@ pub mod destructure;
 pub mod lower;
 pub mod upper;
 
-pub struct ModuleCoord {
+pub struct Coord {
     pub module: usize,
     pub element: usize,
 }
