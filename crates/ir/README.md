@@ -35,3 +35,46 @@ Only extra feature is branching to compile-time dynamic code-coordinates (extern
 * Bare, fixed-type instructions
 * Flat structure
 * Branch coordinates
+
+# Conversion
+
+> **Warning**
+> **Work-in-progress**
+
+## `Upper` to `Destructure`
+
+### `Condition`
+
+This block has the following labels:
+
+* `after` $\rightarrow$ success
+* `cancel` $\rightarrow$ failure
+
+```
+(or (> :c 0) (< :c 5))
+->
+// short-circuit
+branchif > :c 0 after
+branchif < :c 5 after
+// failure
+branch cancel
+-----
+(and (> :c 0) (< :c 5))
+->
+// inverted conditions, short-circuit
+branchif <= :c 0 cancel
+branchif >= :c 5 cancel
+branch after
+-----
+(or (x) (y))
+->
+expand(x)
+label cancel ~ for expand(x)
+expand(y)
+label after ~ for expand(x)
+-----
+(and (x) (y))
+->
+expand(x)
+expand(y)
+```
