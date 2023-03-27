@@ -1,4 +1,4 @@
-pub mod flatten;
+pub mod destructure;
 pub mod lower;
 pub mod upper;
 
@@ -8,6 +8,7 @@ pub struct ModuleCoord {
 }
 
 pub enum Type {
+    Unit,
     Int,
     UInt,
     Float,

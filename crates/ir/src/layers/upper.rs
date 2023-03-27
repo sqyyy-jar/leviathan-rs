@@ -47,6 +47,7 @@ pub enum Stmnt {
     },
     Assign {
         span: Span,
+        index: usize,
         expr: Expr,
     },
     Call {
@@ -97,6 +98,11 @@ pub enum Expr {
         rhs: Box<Expr>,
     },
     Div {
+        span: Span,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    Rem {
         span: Span,
         lhs: Box<Expr>,
         rhs: Box<Expr>,

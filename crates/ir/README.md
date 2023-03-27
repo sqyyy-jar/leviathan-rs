@@ -6,14 +6,16 @@ Conversion happens from an upper layer down to the lowest layer through the laye
 
 Layer expected to be used by high-level languages.
 
+This layer is required to check bounds by itself. Later layers do not have the ability to report meaningful errors.
+
 * Variables
 * No specific types for operations
 * Multi layer structure
 * Separate control flow structures (`if`, `while`, `for`)
 
-## `Flatten`
+## `Destructure`
 
-Intermediate layer to flatten an `Upper` layer to later compile down to a `Lower` layer.
+Intermediate layer to destructure an `Upper` layer so that `if`-statements, `while`-loops and `for`-loops are inlined.
 
 * Variables
 	* Define
