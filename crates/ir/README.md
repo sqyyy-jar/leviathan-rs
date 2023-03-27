@@ -13,27 +13,25 @@ This layer is required to check bounds by itself. Later layers do not have the a
 * Multi layer structure
 * Separate control flow structures (`if`, `while`, `for`)
 
-## `Destructure`
+## Control Flow Flattening (`Destructure`)
 
-Intermediate layer to destructure an `Upper` layer so that `if`-statements, `while`-loops and `for`-loops are inlined.
+Intermediate layer to restructure an `Upper` layer so that `if`-statements, `while`-loops and `for`-loops are getting flattened.
 
 * Variables
-	* Define
-	* Undefine
 	* Lifetimes
 * No specific types for operations
 * Flat structure
 * Operation-embedded, flat control flow structures (`if`, `while`, `for`)
-* Branch coords
+* Branch coordinates
 
 ## `Lower`
 
 Assembly-like layer with bare instructions.
 
-Only extra feature is branching to compile-time dynamic code-coordiantes (extern functions and dynamic offsets).
+Only extra feature is branching to compile-time dynamic code-coordinates (external functions and dynamic offsets).
 
 * Registers
 * Stack
-* Fixed types for operations
+* Bare, fixed-type instructions
 * Flat structure
-* Branch coords
+* Branch coordinates
