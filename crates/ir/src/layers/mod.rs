@@ -1,5 +1,5 @@
+pub mod flatten;
 pub mod lower;
-pub mod middle;
 pub mod upper;
 
 pub struct ModuleCoord {

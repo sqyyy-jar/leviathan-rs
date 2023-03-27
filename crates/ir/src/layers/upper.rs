@@ -3,8 +3,17 @@ use crate::Span;
 use super::{ModuleCoord, Type};
 
 pub enum UpperLayer {
-    Expr { expr: Expr },
-    Block { vars: Vec<Type>, block: CodeBlock },
+    Expr {
+        expr: Expr,
+    },
+    Block {
+        vars: Vec<Variable>,
+        block: CodeBlock,
+    },
+}
+
+pub struct Variable {
+    pub type_: Type,
 }
 
 pub struct CodeBlock {
@@ -29,7 +38,7 @@ pub enum Stmnt {
     },
     Let {
         span: Span,
-        name: Span,
+        index: usize,
         expr: Expr,
     },
     Return {
