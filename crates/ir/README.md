@@ -52,7 +52,7 @@ This block has the following labels:
 * `cancel` $\rightarrow$ failure
 
 ```
-(or (> :c 0) (< :c 5))
+(or (> :c 0) (< :c 5)) // wrong
 ->
 // short-circuit
 branchif > :c 0 after
@@ -62,7 +62,7 @@ branch cancel
 ```
 ---
 ```
-(and (> :c 0) (< :c 5))
+(and (> :c 0) (< :c 5)) // wrong
 ->
 // inverted conditions, short-circuit
 branchif <= :c 0 cancel
@@ -74,37 +74,121 @@ branch after
 ```
 (or (x) (y))
 ->
-expand(x)
-label cancel ~ for expand(x)
-expand(y)
-label after ~ for expand(x)
-branch after
+1: expand(x)
+2: label cancel ~ for 1
+3: expand(y)
+4: label after ~ for 1
+5: branch after
 ```
 ---
 ```
 (and (x) (y))
 ->
-expand(x)
-expand(y)
-branch after
+1: expand(x)
+2: label after ~ for 1
+3: expand(y)
+4: branch after
 ```
 ---
 ```
 (if cond code)
 ->
-expand(cond)
-label after ~ for expand(cond)
-expand(code)
-label cancel ~ for expand(cond)
+1: expand(cond)
+2: label after ~ for 1
+3: expand(code)
+4: label cancel ~ for 1
 ```
 ---
 ```
 (while cond code)
 ->
-branch check
-label after ~ for expand(cond)
-expand(code)
-label check
-expand(cond)
-label cancel ~ for expand(cond)
+1: branch check
+2: label after ~ for 5
+3: expand(code)
+4: label check
+5: expand(cond)
+6: label cancel ~ for 5
+```
+
+#### Examples
+
+```
+(if (and (or (< :c 0) (> :c 100)) (!= :d 0)) {
+  (return)
+})
+===>
+// <if>
+1: expand(cond)
+2: label after ~ for 1
+3: expand(code)
+4: label cancel ~ for 1
+// </if>
+===>
+// <if>
+// <if.cond>
+1: expand(cond.left)
+2: label after ~ for 1
+3: expand(cond.right)
+4: branch after{5}
+// </if.cond>
+5: label after ~ for 2..4
+6: expand(code)
+7: label cancel ~ for 2..4
+// </if>
+===>
+// <if>
+// <if.cond>
+// <if.cond.left>
+1: expand(cond.left.left)
+2: label cancel ~ for 1
+3: expand(cond.left.right)
+4: label after ~ for 1
+5: branch after{6}
+// </if.cond.left>
+6: label after ~ for 1..5
+// <if.cond.right>
+7: branchif != :d 0 after{6}
+8: branch cancel{12}
+// </if.cond.right>
+9: branch after{10}
+// </if.cond>
+10: label after ~ for 6..9
+11: expand(code)
+12: label cancel ~ for 6..9
+// </if>
+```
+
+### Other concept
+
+This concept is written in TypeScript pseudo code.
+
+```ts
+function expandIf(stmnt: IfStmnt) {
+	if (stmnt.cond.is_direct()) {
+		// let success = allocCoord()
+		let failure = allocCoord()
+		emit(
+			branchIf(
+				stmnt.cond.op.inverted(),
+				stmnt.cond.left,
+				stmnd.cond.right,
+				failure,
+			)
+		)
+		// putCoord(success)
+		emit(expand(stmnt.code))
+		putCoord(failure)
+	} else {
+		let success = allocCoord()
+		let failure = allocCoord()
+		emit(expandCond(stmnt.cond, success, failure))
+		putCoord(success)
+		emit(expandCode(stmnt.code))
+		putCoord(failure)
+	}
+}
+
+function expandCond(cond: Cond, success: Coord, failure: Coord) {
+	// TODO
+}
 ```
