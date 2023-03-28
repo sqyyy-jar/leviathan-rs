@@ -39,6 +39,7 @@ Only extra feature is branching to compile-time dynamic code-coordinates (extern
 # Conversion
 
 > **Warning**
+> 
 > **Work-in-progress**
 
 ## `Upper` to `Destructure`
@@ -58,23 +59,52 @@ branchif > :c 0 after
 branchif < :c 5 after
 // failure
 branch cancel
------
+```
+---
+```
 (and (> :c 0) (< :c 5))
 ->
 // inverted conditions, short-circuit
 branchif <= :c 0 cancel
 branchif >= :c 5 cancel
+// success
 branch after
------
+```
+---
+```
 (or (x) (y))
 ->
 expand(x)
 label cancel ~ for expand(x)
 expand(y)
 label after ~ for expand(x)
------
+branch after
+```
+---
+```
 (and (x) (y))
 ->
 expand(x)
 expand(y)
+branch after
+```
+---
+```
+(if cond code)
+->
+expand(cond)
+label after ~ for expand(cond)
+expand(code)
+label cancel ~ for expand(cond)
+```
+---
+```
+(while cond code)
+->
+branch check
+label after ~ for expand(cond)
+expand(code)
+label check
+expand(cond)
+label cancel ~ for expand(cond)
 ```
