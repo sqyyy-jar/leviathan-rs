@@ -164,31 +164,128 @@ This concept is written in TypeScript pseudo code.
 
 ```ts
 function expandIf(stmnt: IfStmnt) {
-	if (stmnt.cond.is_direct()) {
-		// let success = allocCoord()
-		let failure = allocCoord()
-		emit(
-			branchIf(
-				stmnt.cond.op.inverted(),
-				stmnt.cond.left,
-				stmnd.cond.right,
-				failure,
-			)
-		)
-		// putCoord(success)
-		emit(expand(stmnt.code))
-		putCoord(failure)
-	} else {
-		let success = allocCoord()
-		let failure = allocCoord()
-		emit(expandCond(stmnt.cond, success, failure))
-		putCoord(success)
-		emit(expandCode(stmnt.code))
-		putCoord(failure)
-	}
+    if (stmnt.cond.is_direct()) {
+        // let success = allocCoord()
+        let failure = allocCoord()
+        emit(
+            branchIf(
+                stmnt.cond.op.inverted(),
+                stmnt.cond.left,
+                stmnd.cond.right,
+                failure,
+            )
+        )
+        // putCoord(success)
+        emit(expand(stmnt.code))
+        putCoord(failure)
+    } else {
+        let success = allocCoord()
+        let failure = allocCoord()
+        emit(expandCond(stmnt.cond, success, failure))
+        putCoord(success)
+        emit(expandCode(stmnt.code))
+        putCoord(failure)
+    }
 }
 
 function expandCond(cond: Cond, success: Coord, failure: Coord) {
-	// TODO
+    // TODO
+}
+```
+
+```ts
+if ((a > b) and (b == c)) { code }
+if ((a > b) or (b == c)) { code }
+
+// If uses pre-code branching to minimize branching
+// and
+branchif(a <= b, #failure) // inverted condition
+branchif(b != c, #failure) // inverted condition
+code.expand()
+#failure
+
+// or
+branchif(a > b, #success)
+branchif(b == c, #success)
+branch(#failure)
+#success
+code.expand()
+#failure
+```
+
+```ts
+while ((a > b) and (b == c)) { code }
+while ((a > b) or (b == c)) { code }
+
+// While uses post-code branching to minimize branching (only one extra branch in the beginning)
+// and
+branch(#check)
+#success
+code.expand()
+#check
+branchif(a <= b, #failure) // inverted condition
+branchif(b != c, #failure) // inverted condition
+branch(#success)
+#failure
+
+// or
+branch(#check)
+#success
+code.expand()
+#check
+branchif(a > b, #success)
+branchif(b == c, #success)
+#failure
+```
+
+```ts
+while ((a > b) and ((b == c) or (c == d))) { code }
+while ((a > b) or ((b == c) and (c == d))) { code }
+
+// While uses post-code branching to minimize branching (only one extra branch in the beginning)
+// and
+branch(#check)
+#success
+code.expand()
+#check
+branchif(a <= b, #failure) // inverted condition
+branchif(b == c, #success)
+branchif(c == d, #success)
+#failure
+
+// or
+branch(#check)
+#success
+code.expand()
+#check
+branchif(a > b, #success)
+branchif(b != c #failure) // inverted condition
+branchif(c == d, #success)
+#failure
+```
+
+```ts
+// Expansion:
+
+// While:
+branch(#check)
+#success
+code.expand()
+#check
+cond.expand(#success, #failure, {next: #failure})
+#failure
+
+// If:
+cond.expand(#success, #failure, {next: #success})
+#success
+code.expand()
+#failure
+
+// And:
+function expandAnd(success, failure, opts) {
+    if (opts.next == success) {
+        // 
+    }
+    this.left.expand(success)
 }
 ```
