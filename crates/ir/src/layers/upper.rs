@@ -294,7 +294,6 @@ impl Cond {
             Cond::Or { left, right, .. } => match next {
                 NextCoord::Success => {
                     left.expand(layer, success, failure, NextCoord::Failure);
-                    // Compression
                     if right.is_comparison() {
                         right.expand(layer, success, failure, NextCoord::Success);
                     } else {

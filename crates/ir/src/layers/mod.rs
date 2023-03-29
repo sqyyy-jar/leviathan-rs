@@ -49,6 +49,13 @@ impl CompareType {
 
 #[cfg(test)]
 mod test {
+    #![allow(unused)]
+
+    use std::{
+        fmt::Debug,
+        io::{stderr, Write},
+    };
+
     use crate::layers::upper::{Cond, Expr, Stmnt};
 
     use super::upper::{Block, UpperLayer};
@@ -104,8 +111,12 @@ mod test {
         Expr::Int { span: 0..0, value }
     }
 
+    fn debug(value: &impl Debug) {
+        let _ = stderr().write_fmt(format_args!("{value:#?}\n"));
+    }
+
     #[test]
-    fn test() {
+    fn test_debug() {
         let layer = UpperLayer::Block {
             vars: vec![],
             block: block(vec![r#if(
@@ -113,14 +124,11 @@ mod test {
                 block(vec![Stmnt::Assign {
                     span: 0..0,
                     index: 0,
-                    expr: Expr::Int {
-                        span: 0..0,
-                        value: 0,
-                    },
+                    expr: num(42),
                 }]),
             )]),
         };
         let layer = layer.destructure();
-        dbg!(layer);
+        debug(&layer);
     }
 }
