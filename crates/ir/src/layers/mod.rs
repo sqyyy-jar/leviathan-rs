@@ -204,7 +204,7 @@ mod test {
                 }]),
             )]),
         };
-        let layer = layer.destructure().const_eval();
+        let layer = layer.destructure().const_eval().expect("consteval");
         debug(&layer);
     }
 }

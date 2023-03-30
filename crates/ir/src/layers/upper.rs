@@ -142,6 +142,18 @@ pub enum Expr {
         span: Span,
         value: String,
     },
+    CastInt {
+        span: Span,
+        expr: Box<Expr>,
+    },
+    CastUInt {
+        span: Span,
+        expr: Box<Expr>,
+    },
+    CastFloat {
+        span: Span,
+        expr: Box<Expr>,
+    },
     Add {
         span: Span,
         left: Box<Expr>,
@@ -212,6 +224,9 @@ impl Expr {
             | Expr::UInt { span, .. }
             | Expr::Float { span, .. }
             | Expr::String { span, .. }
+            | Expr::CastInt { span, .. }
+            | Expr::CastUInt { span, .. }
+            | Expr::CastFloat { span, .. }
             | Expr::Add { span, .. }
             | Expr::Sub { span, .. }
             | Expr::Mul { span, .. }
@@ -249,6 +264,72 @@ impl Expr {
 
     pub fn const_eval(self) -> Result<Self> {
         match self {
+            Expr::CastInt { span, expr } => {
+                let expr = expr.const_eval()?;
+                if !expr.is_const() {
+                    return Ok(Expr::CastInt {
+                        span,
+                        expr: Box::new(expr),
+                    });
+                }
+                if let Expr::UInt { span, value } = expr {
+                    return Ok(Expr::Int {
+                        span,
+                        value: value as i64,
+                    });
+                }
+                if let Expr::Float { span, value } = expr {
+                    return Ok(Expr::Int {
+                        span,
+                        value: value as i64,
+                    });
+                }
+                Err(Error::InvalidCast { span })
+            }
+            Expr::CastUInt { span, expr } => {
+                let expr = expr.const_eval()?;
+                if !expr.is_const() {
+                    return Ok(Expr::CastUInt {
+                        span,
+                        expr: Box::new(expr),
+                    });
+                }
+                if let Expr::Int { span, value } = expr {
+                    return Ok(Expr::UInt {
+                        span,
+                        value: value as u64,
+                    });
+                }
+                if let Expr::Float { span, value } = expr {
+                    return Ok(Expr::UInt {
+                        span,
+                        value: value as u64,
+                    });
+                }
+                Err(Error::InvalidCast { span })
+            }
+            Expr::CastFloat { span, expr } => {
+                let expr = expr.const_eval()?;
+                if !expr.is_const() {
+                    return Ok(Expr::CastFloat {
+                        span,
+                        expr: Box::new(expr),
+                    });
+                }
+                if let Expr::Int { span, value } = expr {
+                    return Ok(Expr::Float {
+                        span,
+                        value: value as f64,
+                    });
+                }
+                if let Expr::UInt { span, value } = expr {
+                    return Ok(Expr::Float {
+                        span,
+                        value: value as f64,
+                    });
+                }
+                Err(Error::InvalidCast { span })
+            }
             Expr::Add { span, left, right } => {
                 const_eval_binop(BinaryOpType::Add, span, *left, *right)
             }
@@ -293,7 +374,7 @@ impl Expr {
                 if let Expr::UInt { value: expr, .. } = expr {
                     return Ok(Expr::UInt { span, value: !expr });
                 }
-                Err(Error::InvalidUnaryOp { expr: expr.span() })
+                Err(Error::InvalidBitNot { span })
             }
             Expr::Call {
                 span,
