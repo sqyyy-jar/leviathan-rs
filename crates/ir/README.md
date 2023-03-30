@@ -44,3 +44,9 @@ Only extra feature is branching to compile-time dynamic code-coordinates (extern
 * Bare, fixed-type instructions
 * Flat structure
 * Branch coordinates
+
+# To do
+
+* Add remaining required layers
+* `Destructure` $\rightarrow$ ... $\rightarrow$ `Lower`
+* Binary assembling
