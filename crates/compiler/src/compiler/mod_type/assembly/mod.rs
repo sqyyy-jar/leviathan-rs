@@ -8,10 +8,11 @@ use urban_common::opcodes::{L0_MOV, L0_MOVS};
 
 use crate::{
     compiler::{
+        cast,
         error::{Error, Result},
         intermediary::{Insn, IntermediaryStaticValue, Reg},
         mod_type::assembly::{insns::INSN_MACROS, macros::MACROS},
-        CompileTask, Func, FuncData, Import, ModuleType, ModuleVTable, Static, StaticData, Type,
+        CompileTask, Func, FuncData, ModuleType, ModuleVTable, Static, StaticData, Type,
         UncollectedModule,
     },
     parser::{BracketType, Node},
@@ -20,15 +21,31 @@ use crate::{
 
 use self::static_funcs::STATIC_FUNCS;
 
-pub struct AssemblyLanguage;
+pub enum AssemblyLanguage {
+    Collected { unresolved_imports: Vec<Import> },
+    Intermediate { imports: Vec<usize> },
+}
 
 impl ModuleType for AssemblyLanguage {
     fn vtable(&self) -> ModuleVTable {
         ModuleVTable {
             collect,
-            gen_intermediary,
+            compile_module,
         }
     }
+}
+
+impl Default for AssemblyLanguage {
+    fn default() -> Self {
+        Self::Collected {
+            unresolved_imports: Vec::with_capacity(0),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Import {
+    pub node: Node,
 }
 
 fn collect(
@@ -80,7 +97,12 @@ fn collect(
                         span: sub_nodes[1].span(),
                     });
                 };
-                module.unresolved_imports.push(Import {
+                let AssemblyLanguage::Collected { unresolved_imports } =
+                    cast::<AssemblyLanguage>(&mut module.type_).as_mut() else
+                {
+                    unreachable!()
+                };
+                unresolved_imports.push(Import {
                     node: sub_nodes.pop().unwrap(),
                 });
             }
@@ -174,11 +196,17 @@ fn collect(
     Ok(())
 }
 
-fn gen_intermediary(task: &mut CompileTask, module_index: usize) -> Result<()> {
+fn compile_module(task: &mut CompileTask, module_index: usize) -> Result<()> {
     let module = &mut task.modules[module_index];
     let statics_len = module.statics.len();
     let funcs_len = module.funcs.len();
-    for import in module.unresolved_imports.drain(..) {
+    let AssemblyLanguage::Collected { unresolved_imports } =
+        cast::<AssemblyLanguage>(&mut module.type_).as_mut() else
+    {
+        unreachable!()
+    };
+    let mut imports = Vec::with_capacity(unresolved_imports.len());
+    for import in unresolved_imports.drain(..) {
         let Node::Ident { span } = import.node else {unreachable!()};
         let name = &module.src[span.clone()];
         let Some(include) = task.module_indices.get(name) else {
@@ -188,22 +216,19 @@ fn gen_intermediary(task: &mut CompileTask, module_index: usize) -> Result<()> {
                 span,
             });
         };
-        module.imports.push(*include);
+        imports.push(*include);
     }
+    module.type_ = Box::new(AssemblyLanguage::Intermediate { imports });
     for static_index in 0..statics_len {
-        gen_static_intermediary(task, module_index, static_index)?;
+        compile_static(task, module_index, static_index)?;
     }
     for func_index in 0..funcs_len {
-        gen_scope_intermediary(task, module_index, func_index)?;
+        compile_label(task, module_index, func_index)?;
     }
     Ok(())
 }
 
-fn gen_static_intermediary(
-    task: &mut CompileTask,
-    module_index: usize,
-    static_index: usize,
-) -> Result<()> {
+fn compile_static(task: &mut CompileTask, module_index: usize, static_index: usize) -> Result<()> {
     let module = &mut task.modules[module_index];
     let Static { data, used: _ } = &mut module.statics[static_index];
     let StaticData::Collected { node } = mem::replace(
@@ -286,11 +311,7 @@ fn gen_static_intermediary(
     }
 }
 
-fn gen_scope_intermediary(
-    task: &mut CompileTask,
-    module_index: usize,
-    func_index: usize,
-) -> Result<()> {
+fn compile_label(task: &mut CompileTask, module_index: usize, func_index: usize) -> Result<()> {
     let module = &mut task.modules[module_index];
     let Func {
         public: _,
@@ -425,14 +446,14 @@ fn gen_scope_intermediary(
                     span,
                 });
             }
-            gen_scope_node_intermediary(task, module_index, &mut ir, sub_nodes, span, 0)?;
+            compile_label_node(task, module_index, &mut ir, sub_nodes, span, 0)?;
             task.modules[module_index].funcs[func_index].data = FuncData::Intermediary { ir };
             Ok(())
         }
     }
 }
 
-fn gen_scope_node_intermediary(
+fn compile_label_node(
     task: &mut CompileTask,
     module_index: usize,
     ir: &mut Vec<Insn>,
@@ -560,14 +581,7 @@ fn gen_scope_node_intermediary(
                                 span,
                             });
                         }
-                        gen_scope_node_intermediary(
-                            task,
-                            module_index,
-                            ir,
-                            sub_nodes,
-                            span,
-                            depth + 1,
-                        )?;
+                        compile_label_node(task, module_index, ir, sub_nodes, span, depth + 1)?;
                         module = &mut task.modules[module_index];
                     }
                 }
@@ -655,7 +669,7 @@ fn gen_scope_node_intermediary(
                     span,
                 });
             }
-            gen_scope_node_intermediary(task, module_index, ir, sub_nodes, span, depth + 1)?;
+            compile_label_node(task, module_index, ir, sub_nodes, span, depth + 1)?;
             ir.push(Insn::CreatePoint { pos });
             if depth == 0 {
                 ir.push(Insn::Ret);
@@ -743,7 +757,7 @@ fn gen_scope_node_intermediary(
                     span,
                 });
             }
-            gen_scope_node_intermediary(task, module_index, ir, sub_nodes, span, depth + 1)?;
+            compile_label_node(task, module_index, ir, sub_nodes, span, depth + 1)?;
             ir.push(Insn::CreatePoint { pos: cond_pos });
             ir.push(insn);
             if depth == 0 {
@@ -830,7 +844,7 @@ fn gen_scope_node_intermediary(
                     span,
                 });
             }
-            gen_scope_node_intermediary(task, module_index, ir, sub_nodes, span, depth + 1)?;
+            compile_label_node(task, module_index, ir, sub_nodes, span, depth + 1)?;
             ir.push(insn);
             if depth == 0 {
                 ir.push(Insn::Ret);
@@ -869,8 +883,18 @@ fn gen_scope_node_intermediary(
                 }
             }
             let name = name.to_string();
-            for i in 0..module.imports.len() {
-                let i = module.imports[i];
+            let AssemblyLanguage::Intermediate { imports } =
+                cast::<AssemblyLanguage>(&mut module.type_).as_mut() else
+            {
+                unreachable!()
+            };
+            for i in 0..imports.len() {
+                let AssemblyLanguage::Intermediate { imports } =
+                    cast::<AssemblyLanguage>(&mut module.type_).as_mut() else
+                {
+                    unreachable!()
+                };
+                let i = imports[i];
                 let include = &task.modules[i];
                 if let Some(func_index) = include.func_indices.get(&name) {
                     if include.funcs[*func_index].public {

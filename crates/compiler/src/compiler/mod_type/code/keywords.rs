@@ -229,7 +229,6 @@ fn parse_type(module: &mut Module, span: Span) -> Result<Type> {
         "uint" => Ok(Type::UInt),
         "float" => Ok(Type::Float),
         "str" => Ok(Type::String),
-        "ptr" => todo!(),
         _ => Err(Error::InvalidType {
             file: take_file(module),
             src: take_src(module),

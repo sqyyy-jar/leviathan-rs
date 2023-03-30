@@ -50,7 +50,7 @@ impl ModuleType for CodeLanguage {
     fn vtable(&self) -> ModuleVTable {
         ModuleVTable {
             collect,
-            gen_intermediary,
+            compile_module,
         }
     }
 }
@@ -103,7 +103,7 @@ fn collect(
     Ok(())
 }
 
-fn gen_intermediary(task: &mut CompileTask, module_index: usize) -> Result<()> {
+fn compile_module(task: &mut CompileTask, module_index: usize) -> Result<()> {
     let mut module = &mut task.modules[module_index];
     let CodeLanguage::Collected { imports } = cast::<CodeLanguage>(&mut module.type_).as_mut() else {
         unreachable!()
@@ -134,7 +134,7 @@ fn gen_intermediary(task: &mut CompileTask, module_index: usize) -> Result<()> {
         ) else {
             unreachable!()
         };
-        let value = gen_static_intermediary(module, node)?;
+        let value = compile_static(module, node)?;
         module.statics[i].data = StaticData::Intermediary { value };
     }
     for i in 0..module.funcs.len() {
@@ -145,14 +145,14 @@ fn gen_intermediary(task: &mut CompileTask, module_index: usize) -> Result<()> {
                 ir: Vec::with_capacity(0),
             },
         ) else {unreachable!()};
-        let ir = gen_expr_intermediary(task, module_index, node)?;
+        let ir = compile_func_body(task, module_index, node)?;
         module = &mut task.modules[module_index];
         module.funcs[i].data = FuncData::Intermediary { ir };
     }
     Ok(())
 }
 
-fn gen_static_intermediary(module: &mut Module, node: Node) -> Result<IntermediaryStaticValue> {
+fn compile_static(module: &mut Module, node: Node) -> Result<IntermediaryStaticValue> {
     match node {
         Node::Ident { span } => Err(Error::UnexpectedToken {
             file: take_file(module),
@@ -171,7 +171,7 @@ fn gen_static_intermediary(module: &mut Module, node: Node) -> Result<Intermedia
     }
 }
 
-fn gen_expr_intermediary(
+fn compile_func_body(
     _task: &mut CompileTask,
     _module_index: usize,
     _expr: Node,

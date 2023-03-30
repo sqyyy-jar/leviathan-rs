@@ -31,7 +31,7 @@ pub mod intermediary;
 pub mod mod_type;
 
 pub const MODULE_TYPES: Map<&str, fn() -> Box<dyn ModuleType>> = phf_map! {
-    "assembly" => || Box::new(AssemblyLanguage),
+    "assembly" => || Box::<AssemblyLanguage>::default(),
     "code" => || Box::<CodeLanguage>::default(),
 };
 
@@ -51,7 +51,7 @@ pub struct ModuleVTable {
         module: UncollectedModule,
         main: bool,
     ) -> Result<()>,
-    pub gen_intermediary: fn(task: &mut CompileTask, module_index: usize) -> Result<()>,
+    pub compile_module: fn(task: &mut CompileTask, module_index: usize) -> Result<()>,
 }
 
 #[derive(Debug)]
@@ -153,7 +153,7 @@ impl CompileTask {
         }
         self.status = Status::Invalid;
         for i in 0..self.modules.len() {
-            (self.modules[i].type_.vtable().gen_intermediary)(self, i)?;
+            (self.modules[i].type_.vtable().compile_module)(self, i)?;
         }
         self.status = Status::Compiled;
         Ok(())
@@ -523,8 +523,6 @@ impl CompileTask {
 pub struct Module {
     pub file: String,
     pub src: String,
-    pub unresolved_imports: Vec<Import>,
-    pub imports: Vec<usize>,
     pub func_indices: HashMap<String, usize>,
     pub funcs: Vec<Func>,
     pub static_indices: HashMap<String, usize>,
@@ -538,8 +536,6 @@ impl Debug for Module {
         f.debug_struct("Module")
             .field("file", &self.file)
             .field("src", &self.src)
-            .field("unresolved_imports", &self.unresolved_imports)
-            .field("imports", &self.imports)
             .field("func_indices", &self.func_indices)
             .field("funcs", &self.funcs)
             .field("static_indices", &self.static_indices)
@@ -554,8 +550,6 @@ impl Module {
         Self {
             file,
             src,
-            unresolved_imports: Vec::with_capacity(0),
-            imports: Vec::with_capacity(0),
             func_indices: HashMap::with_capacity(0),
             funcs: Vec::with_capacity(0),
             static_indices: HashMap::with_capacity(0),
@@ -564,11 +558,6 @@ impl Module {
             used: false,
         }
     }
-}
-
-#[derive(Debug)]
-pub struct Import {
-    pub node: Node,
 }
 
 #[derive(Debug)]
