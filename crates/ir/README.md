@@ -24,7 +24,7 @@ Intermediate layer to restructure an `Upper` layer so that `if`-statements, `whi
 * Operation-embedded, flat control flow structures (`if`, `while`, `for`)
 * Branch coordinates
 
-## Constant evaluation
+## Constant evaluation (`const_eval`)
 
 > **Warning**  
 > Work in progress

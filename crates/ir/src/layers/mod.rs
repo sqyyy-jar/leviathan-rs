@@ -1,4 +1,9 @@
+use crate::Span;
+
+use self::upper::Expr;
+
 pub mod destructure;
+pub mod error;
 pub mod lower;
 pub mod upper;
 
@@ -43,6 +48,37 @@ impl CompareType {
             Self::Greater => Self::LessEqual,
             Self::LessEqual => Self::Greater,
             Self::GreaterEqual => Self::Less,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum BinaryOpType {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Rem,
+    BitAnd,
+    BitOr,
+    BitXor,
+    ShiftLeft,
+    ShiftRight,
+}
+
+impl BinaryOpType {
+    pub fn constructor(&self) -> fn(Span, Box<Expr>, Box<Expr>) -> Expr {
+        match self {
+            BinaryOpType::Add => |span, left, right| Expr::Add { span, left, right },
+            BinaryOpType::Sub => |span, left, right| Expr::Sub { span, left, right },
+            BinaryOpType::Mul => |span, left, right| Expr::Mul { span, left, right },
+            BinaryOpType::Div => |span, left, right| Expr::Div { span, left, right },
+            BinaryOpType::Rem => |span, left, right| Expr::Rem { span, left, right },
+            BinaryOpType::BitAnd => |span, left, right| Expr::BitAnd { span, left, right },
+            BinaryOpType::BitOr => |span, left, right| Expr::BitOr { span, left, right },
+            BinaryOpType::BitXor => |span, left, right| Expr::BitXor { span, left, right },
+            BinaryOpType::ShiftLeft => |span, left, right| Expr::ShiftLeft { span, left, right },
+            BinaryOpType::ShiftRight => |span, left, right| Expr::ShiftRight { span, left, right },
         }
     }
 }
@@ -111,6 +147,46 @@ mod test {
         Expr::Int { span: 0..0, value }
     }
 
+    fn add(left: Expr, right: Expr) -> Expr {
+        Expr::Add {
+            span: 0..0,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    fn sub(left: Expr, right: Expr) -> Expr {
+        Expr::Sub {
+            span: 0..0,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    fn mul(left: Expr, right: Expr) -> Expr {
+        Expr::Mul {
+            span: 0..0,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    fn div(left: Expr, right: Expr) -> Expr {
+        Expr::Div {
+            span: 0..0,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    fn rem(left: Expr, right: Expr) -> Expr {
+        Expr::Rem {
+            span: 0..0,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
     fn debug(value: &impl Debug) {
         let _ = stderr().write_fmt(format_args!("{value:#?}\n"));
     }
@@ -124,11 +200,11 @@ mod test {
                 block(vec![Stmnt::Assign {
                     span: 0..0,
                     index: 0,
-                    expr: num(42),
+                    expr: mul(num(21), num(2)),
                 }]),
             )]),
         };
-        let layer = layer.destructure();
+        let layer = layer.destructure().const_eval();
         debug(&layer);
     }
 }

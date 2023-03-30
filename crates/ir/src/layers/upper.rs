@@ -1,6 +1,11 @@
-use crate::{layers::destructure::Op, Span};
+use crate::{
+    layers::{destructure::Op, error::Error},
+    Span,
+};
 
-use super::{destructure::DestructureLayer, CompareType, Coord, NextCoord, Type};
+use super::{
+    destructure::DestructureLayer, error::Result, BinaryOpType, CompareType, Coord, NextCoord, Type,
+};
 
 #[derive(Debug)]
 pub enum UpperLayer {
@@ -187,11 +192,6 @@ pub enum Expr {
         left: Box<Expr>,
         right: Box<Expr>,
     },
-    SignedShiftRight {
-        span: Span,
-        left: Box<Expr>,
-        right: Box<Expr>,
-    },
     BitNot {
         span: Span,
         expr: Box<Expr>,
@@ -201,6 +201,118 @@ pub enum Expr {
         coord: Coord,
         params: Vec<Expr>,
     },
+}
+
+impl Expr {
+    pub fn span(&self) -> Span {
+        match self {
+            Expr::Static { span, .. }
+            | Expr::Variable { span, .. }
+            | Expr::Int { span, .. }
+            | Expr::UInt { span, .. }
+            | Expr::Float { span, .. }
+            | Expr::String { span, .. }
+            | Expr::Add { span, .. }
+            | Expr::Sub { span, .. }
+            | Expr::Mul { span, .. }
+            | Expr::Div { span, .. }
+            | Expr::Rem { span, .. }
+            | Expr::BitAnd { span, .. }
+            | Expr::BitOr { span, .. }
+            | Expr::BitXor { span, .. }
+            | Expr::ShiftLeft { span, .. }
+            | Expr::ShiftRight { span, .. }
+            | Expr::BitNot { span, .. }
+            | Expr::Call { span, .. } => span.clone(),
+        }
+    }
+
+    pub fn is_const(&self) -> bool {
+        matches!(
+            self,
+            Expr::Int { .. } | Expr::UInt { .. } | Expr::Float { .. } | Expr::String { .. }
+        )
+    }
+
+    pub fn const_type_match(&self, other: &Self) -> bool {
+        if !self.is_const() || !other.is_const() {
+            return false;
+        }
+        match self {
+            Expr::Int { .. } => matches!(other, Expr::Int { .. }),
+            Expr::UInt { .. } => matches!(other, Expr::UInt { .. }),
+            Expr::Float { .. } => matches!(other, Expr::Float { .. }),
+            Expr::String { .. } => matches!(other, Expr::String { .. }),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn const_eval(self) -> Result<Self> {
+        match self {
+            Expr::Add { span, left, right } => {
+                const_eval_binop(BinaryOpType::Add, span, *left, *right)
+            }
+            Expr::Sub { span, left, right } => {
+                const_eval_binop(BinaryOpType::Sub, span, *left, *right)
+            }
+            Expr::Mul { span, left, right } => {
+                const_eval_binop(BinaryOpType::Mul, span, *left, *right)
+            }
+            Expr::Div { span, left, right } => {
+                const_eval_binop(BinaryOpType::Div, span, *left, *right)
+            }
+            Expr::Rem { span, left, right } => {
+                const_eval_binop(BinaryOpType::Rem, span, *left, *right)
+            }
+            Expr::BitAnd { span, left, right } => {
+                const_eval_binop(BinaryOpType::BitAnd, span, *left, *right)
+            }
+            Expr::BitOr { span, left, right } => {
+                const_eval_binop(BinaryOpType::BitOr, span, *left, *right)
+            }
+            Expr::BitXor { span, left, right } => {
+                const_eval_binop(BinaryOpType::BitXor, span, *left, *right)
+            }
+            Expr::ShiftLeft { span, left, right } => {
+                const_eval_binop(BinaryOpType::ShiftLeft, span, *left, *right)
+            }
+            Expr::ShiftRight { span, left, right } => {
+                const_eval_binop(BinaryOpType::ShiftRight, span, *left, *right)
+            }
+            Expr::BitNot { span, expr } => {
+                let expr = expr.const_eval()?;
+                if !expr.is_const() {
+                    return Ok(Expr::BitNot {
+                        span,
+                        expr: Box::new(expr),
+                    });
+                }
+                if let Expr::Int { value: expr, .. } = expr {
+                    return Ok(Expr::Int { span, value: !expr });
+                }
+                if let Expr::UInt { value: expr, .. } = expr {
+                    return Ok(Expr::UInt { span, value: !expr });
+                }
+                Err(Error::InvalidUnaryOp { expr: expr.span() })
+            }
+            Expr::Call {
+                span,
+                coord,
+                params,
+            } => {
+                let mut new_params = Vec::with_capacity(params.len());
+                for param in params {
+                    new_params.push(param.const_eval()?);
+                }
+                Ok(Expr::Call {
+                    span,
+                    coord,
+                    params: new_params,
+                })
+            }
+            other => Ok(other),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -351,6 +463,280 @@ impl Cond {
             Self::LessEqual { .. } => Some(CompareType::LessEqual),
             Self::GreaterEqual { .. } => Some(CompareType::GreaterEqual),
             _ => None,
+        }
+    }
+}
+
+fn const_eval_binop(op: BinaryOpType, span: Span, left: Expr, right: Expr) -> Result<Expr> {
+    match op {
+        BinaryOpType::Add
+        | BinaryOpType::Sub
+        | BinaryOpType::Mul
+        | BinaryOpType::Div
+        | BinaryOpType::Rem
+        | BinaryOpType::BitAnd
+        | BinaryOpType::BitOr
+        | BinaryOpType::BitXor => {
+            let left = left.const_eval()?;
+            let right = right.const_eval()?;
+            if !left.is_const() || !right.is_const() {
+                return Ok(op.constructor()(span, Box::new(left), Box::new(right)));
+            }
+            if !left.const_type_match(&right) {
+                return Ok(op.constructor()(span, Box::new(left), Box::new(right)));
+                // return Err(Error::NonMatchingTypes {
+                //     left: left.span(),
+                //     right: right.span(),
+                // });
+            }
+            match op {
+                BinaryOpType::Add => {
+                    if let Expr::Int { value: left, .. } = left {
+                        let Expr::Int { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Int {
+                            span,
+                            value: left + right,
+                        });
+                    }
+                    if let Expr::UInt { value: left, .. } = left {
+                        let Expr::UInt { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::UInt {
+                            span,
+                            value: left + right,
+                        });
+                    }
+                    if let Expr::Float { value: left, .. } = left {
+                        let Expr::Float { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Float {
+                            span,
+                            value: left + right,
+                        });
+                    }
+                }
+                BinaryOpType::Sub => {
+                    if let Expr::Int { value: left, .. } = left {
+                        let Expr::Int { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Int {
+                            span,
+                            value: left - right,
+                        });
+                    }
+                    if let Expr::UInt { value: left, .. } = left {
+                        let Expr::UInt { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::UInt {
+                            span,
+                            value: left - right,
+                        });
+                    }
+                    if let Expr::Float { value: left, .. } = left {
+                        let Expr::Float { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Float {
+                            span,
+                            value: left - right,
+                        });
+                    }
+                }
+                BinaryOpType::Mul => {
+                    if let Expr::Int { value: left, .. } = left {
+                        let Expr::Int { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Int {
+                            span,
+                            value: left * right,
+                        });
+                    }
+                    if let Expr::UInt { value: left, .. } = left {
+                        let Expr::UInt { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::UInt {
+                            span,
+                            value: left * right,
+                        });
+                    }
+                    if let Expr::Float { value: left, .. } = left {
+                        let Expr::Float { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Float {
+                            span,
+                            value: left * right,
+                        });
+                    }
+                }
+                BinaryOpType::Div => {
+                    if let Expr::Int { value: left, .. } = left {
+                        let Expr::Int { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Int {
+                            span,
+                            value: left / right,
+                        });
+                    }
+                    if let Expr::UInt { value: left, .. } = left {
+                        let Expr::UInt { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::UInt {
+                            span,
+                            value: left / right,
+                        });
+                    }
+                    if let Expr::Float { value: left, .. } = left {
+                        let Expr::Float { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Float {
+                            span,
+                            value: left / right,
+                        });
+                    }
+                }
+                BinaryOpType::Rem => {
+                    if let Expr::Int { value: left, .. } = left {
+                        let Expr::Int { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Int {
+                            span,
+                            value: left % right,
+                        });
+                    }
+                    if let Expr::UInt { value: left, .. } = left {
+                        let Expr::UInt { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::UInt {
+                            span,
+                            value: left % right,
+                        });
+                    }
+                    if let Expr::Float { value: left, .. } = left {
+                        let Expr::Float { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Float {
+                            span,
+                            value: left % right,
+                        });
+                    }
+                }
+                BinaryOpType::BitAnd => {
+                    if let Expr::Int { value: left, .. } = left {
+                        let Expr::Int { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Int {
+                            span,
+                            value: left & right,
+                        });
+                    }
+                    if let Expr::UInt { value: left, .. } = left {
+                        let Expr::UInt { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::UInt {
+                            span,
+                            value: left & right,
+                        });
+                    }
+                }
+                BinaryOpType::BitOr => {
+                    if let Expr::Int { value: left, .. } = left {
+                        let Expr::Int { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Int {
+                            span,
+                            value: left | right,
+                        });
+                    }
+                    if let Expr::UInt { value: left, .. } = left {
+                        let Expr::UInt { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::UInt {
+                            span,
+                            value: left | right,
+                        });
+                    }
+                }
+                BinaryOpType::BitXor => {
+                    if let Expr::Int { value: left, .. } = left {
+                        let Expr::Int { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::Int {
+                            span,
+                            value: left ^ right,
+                        });
+                    }
+                    if let Expr::UInt { value: left, .. } = left {
+                        let Expr::UInt { value: right, .. } = right else {unreachable!()};
+                        return Ok(Expr::UInt {
+                            span,
+                            value: left ^ right,
+                        });
+                    }
+                }
+                _ => unreachable!(),
+            }
+            Err(Error::InvalidBinOp {
+                left: left.span(),
+                right: right.span(),
+            })
+        }
+        BinaryOpType::ShiftLeft => {
+            let left = left.const_eval()?;
+            let right = right.const_eval()?;
+            if !left.is_const() || !right.is_const() {
+                return Ok(op.constructor()(span, Box::new(left), Box::new(right)));
+            }
+            if let Expr::Int { value: left, .. } = left {
+                if let Expr::Int { value: right, .. } = right {
+                    return Ok(Expr::Int {
+                        span,
+                        value: left << right,
+                    });
+                }
+                if let Expr::UInt { value: right, .. } = right {
+                    return Ok(Expr::Int {
+                        span,
+                        value: left << right,
+                    });
+                }
+            }
+            if let Expr::UInt { value: left, .. } = left {
+                if let Expr::Int { value: right, .. } = right {
+                    return Ok(Expr::UInt {
+                        span,
+                        value: left << right,
+                    });
+                }
+                if let Expr::UInt { value: right, .. } = right {
+                    return Ok(Expr::UInt {
+                        span,
+                        value: left << right,
+                    });
+                }
+            }
+            Err(Error::InvalidBinOp {
+                left: left.span(),
+                right: right.span(),
+            })
+        }
+        BinaryOpType::ShiftRight => {
+            let left = left.const_eval()?;
+            let right = right.const_eval()?;
+            if !left.is_const() || !right.is_const() {
+                return Ok(op.constructor()(span, Box::new(left), Box::new(right)));
+            }
+            if let Expr::Int { value: left, .. } = left {
+                if let Expr::Int { value: right, .. } = right {
+                    return Ok(Expr::Int {
+                        span,
+                        value: left >> right,
+                    });
+                }
+                if let Expr::UInt { value: right, .. } = right {
+                    return Ok(Expr::Int {
+                        span,
+                        value: left >> right,
+                    });
+                }
+            }
+            if let Expr::UInt { value: left, .. } = left {
+                if let Expr::Int { value: right, .. } = right {
+                    return Ok(Expr::UInt {
+                        span,
+                        value: left >> right,
+                    });
+                }
+                if let Expr::UInt { value: right, .. } = right {
+                    return Ok(Expr::UInt {
+                        span,
+                        value: left >> right,
+                    });
+                }
+            }
+            Err(Error::InvalidBinOp {
+                left: left.span(),
+                right: right.span(),
+            })
         }
     }
 }
