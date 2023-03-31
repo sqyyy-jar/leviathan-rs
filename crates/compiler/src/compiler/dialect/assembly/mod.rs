@@ -8,9 +8,9 @@ use urban_common::opcodes::{L0_MOV, L0_MOVS};
 
 use crate::{
     compiler::{
+        dialect::assembly::{insns::INSN_MACROS, macros::MACROS},
         error::{Error, Result},
         intermediary::{Insn, IntermediaryStaticValue, Reg},
-        dialect::assembly::{insns::INSN_MACROS, macros::MACROS},
         CompileTask, Dialect, Func, FuncData, Static, StaticData, Type, UncollectedModule,
     },
     parser::{BracketType, Node},
@@ -186,6 +186,13 @@ impl Dialect for AssemblyLanguage {
                     span,
                 });
             };
+            if *include == module_index {
+                return Err(Error::SelfImport {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            }
             imports.push(*include);
         }
         for static_index in 0..statics_len {

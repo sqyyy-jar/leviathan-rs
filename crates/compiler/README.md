@@ -11,11 +11,12 @@ Every module contains the following:
 * `src`: the source as a string
 * `dialect`: the boxed instance of the dialect
 	* Optional, is swapped with none during interaction
-* `lookup_callable`: function to lookup function-like elements of a dialect
+* `lookup_callable`: function to lookup callable elements of a dialect
 	* returns an index to the element
 	* takes name of the element as parameter
 	* only returns if element is public
 * (in the future) `lookup_static`
+* (WIP) `callable_signature`: function to get signature of callable element
 
 # To do
 

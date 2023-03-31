@@ -41,7 +41,7 @@ pub trait Dialect {
 #[derive(Debug)]
 pub struct CompileTask {
     pub module_indices: HashMap<String, usize>,
-    pub modules: Vec<Module_>,
+    pub modules: Vec<Module>,
     pub status: Status,
     pub main: Option<(usize, usize)>,
 }
@@ -123,7 +123,7 @@ impl CompileTask {
         };
         let dialect = dialect_supplier();
         let module_index = self.modules.len();
-        self.modules.push(Module_::new(file, src, dialect));
+        self.modules.push(Module::new(file, src, dialect));
         self.module_indices.insert(name, module_index);
         let mut dialect = self.modules[module_index].take_dialect();
         dialect.collect(self, module_index, UncollectedModule { root }, main)?;
@@ -508,13 +508,13 @@ impl CompileTask {
     }
 }
 
-pub struct Module_ {
+pub struct Module {
     pub file: String,
     pub src: String,
     pub dialect: Option<Box<dyn Dialect>>,
 }
 
-impl Debug for Module_ {
+impl Debug for Module {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Module")
             .field("file", &self.file)
@@ -523,7 +523,7 @@ impl Debug for Module_ {
     }
 }
 
-impl Module_ {
+impl Module {
     pub fn new(file: String, src: String, dialect: Box<dyn Dialect>) -> Self {
         Self {
             file,

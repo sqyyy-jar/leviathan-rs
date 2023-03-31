@@ -116,6 +116,11 @@ pub enum Error {
         src: String,
         span: Span,
     },
+    SelfImport {
+        file: String,
+        src: String,
+        span: Span,
+    },
     NotInSizeRangeFrom {
         file: String,
         src: String,
@@ -263,6 +268,12 @@ impl Error {
             }
             Error::InvalidRegister { file, src, span } => {
                 report = span_error_report(file, span, "Invalid register");
+                source = Source::from(src);
+                file
+            }
+            Error::SelfImport { file, src, span } => {
+                report =
+                    span_error_report(file, span, "A module cannot be imported inside of itself");
                 source = Source::from(src);
                 file
             }

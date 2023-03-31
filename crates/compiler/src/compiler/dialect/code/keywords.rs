@@ -1,7 +1,7 @@
 use crate::{
     compiler::{
         error::{Error, Result},
-        CompileTask, Func, FuncData, Module_, Static, StaticData, Type,
+        CompileTask, Func, FuncData, Module, Static, StaticData, Type,
     },
     parser::{BracketType, Node},
     util::source::Span,
@@ -220,7 +220,7 @@ pub fn collect_fn(
     Ok(())
 }
 
-fn parse_type(module: &mut Module_, span: Span) -> Result<Type> {
+fn parse_type(module: &mut Module, span: Span) -> Result<Type> {
     match &module.src[span.clone()] {
         "unit" => Ok(Type::Unit),
         "int" => Ok(Type::Int),

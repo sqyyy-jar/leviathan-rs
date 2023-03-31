@@ -8,7 +8,7 @@ use crate::{
     compiler::{
         error::{Error, Result},
         intermediary::{Insn, IntermediaryStaticValue},
-        CompileTask, Dialect, Func, FuncData, Module_, Static, StaticData, UncollectedModule,
+        CompileTask, Dialect, Func, FuncData, Module, Static, StaticData, UncollectedModule,
     },
     parser::{BracketType, Node},
     util::source::Span,
@@ -157,7 +157,7 @@ impl Dialect for CodeLanguage {
     }
 }
 
-fn compile_static(module: &mut Module_, node: Node) -> Result<IntermediaryStaticValue> {
+fn compile_static(module: &mut Module, node: Node) -> Result<IntermediaryStaticValue> {
     match node {
         Node::Ident { span } => Err(Error::UnexpectedToken {
             file: module.take_file(),
