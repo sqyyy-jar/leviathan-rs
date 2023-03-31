@@ -1,16 +1,18 @@
 use crate::{
     compiler::{
-        cast,
         error::{Error, Result},
-        CompileTask, Func, FuncData, Module, Static, StaticData, Type,
+        CompileTask, Func, FuncData, Module_, Static, StaticData, Type,
     },
     parser::{BracketType, Node},
     util::source::Span,
 };
 
-use super::{take_file, take_src, CodeLanguage};
+use super::CodeLanguage;
 
 pub fn collect_use(
+    CodeLanguage {
+        unresolved_imports, ..
+    }: &mut CodeLanguage,
     task: &mut CompileTask,
     module_index: usize,
     _main_module: bool,
@@ -20,39 +22,37 @@ pub fn collect_use(
     let module = &mut task.modules[module_index];
     if nodes.len() < 2 {
         return Err(Error::InvalidStatement {
-            file: take_file(module),
-            src: take_src(module),
+            file: module.take_file(),
+            src: module.take_src(),
             span,
         });
     }
     for node in nodes.into_iter().skip(1) {
         let Node::Ident { span: include_span } = &node else {
             return Err(Error::UnexpectedToken {
-                file: take_file(module),
-                src: take_src(module),
+                file: module.take_file(),
+                    src: module.take_src(),
                 span: node.span(),
             });
         };
         let include = &module.src[include_span.clone()];
-        let CodeLanguage::Collected { imports, .. } =
-            cast::<CodeLanguage>(&mut module.type_).as_mut() else
-        {unreachable!()};
-        for import_span in imports.iter() {
+        for import_span in unresolved_imports.iter() {
             let import = &module.src[import_span.clone()];
             if include == import {
                 return Err(Error::UnexpectedToken {
-                    file: take_file(module),
-                    src: take_src(module),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: include_span.clone(),
                 });
             }
         }
-        imports.push(include_span.clone());
+        unresolved_imports.push(include_span.clone());
     }
     Ok(())
 }
 
 pub fn collect_static(
+    dialect: &mut CodeLanguage,
     task: &mut CompileTask,
     module_index: usize,
     _main_module: bool,
@@ -62,53 +62,51 @@ pub fn collect_static(
     let module = &mut task.modules[module_index];
     if nodes.len() == 1 {
         return Err(Error::InvalidStatement {
-            file: take_file(module),
-            src: take_src(module),
+            file: module.take_file(),
+            src: module.take_src(),
             span,
         });
     }
     if nodes.len() % 2 != 1 {
         return Err(Error::InvalidStatement {
-            file: take_file(module),
-            src: take_src(module),
+            file: module.take_file(),
+            src: module.take_src(),
             span,
         });
     }
     let var_count = (nodes.len() - 1) / 2;
     let mut nodes = nodes.into_iter().skip(1);
-    let CodeLanguage::Collected { .. } = cast::<CodeLanguage>(&mut module.type_).as_mut() else {
-        unreachable!()
-    };
     for _ in 0..var_count {
         let name = nodes.next().unwrap();
         let Node::Ident { span: name_span } = name else {
             return Err(Error::UnexpectedToken {
-                file: take_file(module),
-                src: take_src(module),
+                file: module.take_file(),
+                src: module.take_src(),
                 span: name.span(),
             });
         };
         let name = &module.src[name_span.clone()];
-        if module.static_indices.contains_key(name) {
+        if dialect.static_indices.contains_key(name) {
             return Err(Error::DuplicateName {
-                file: take_file(module),
-                src: take_src(module),
+                file: module.take_file(),
+                src: module.take_src(),
                 span: name_span,
             });
         }
         let value = nodes.next().unwrap();
-        module.statics.push(Static {
+        dialect.statics.push(Static {
             data: StaticData::Collected { node: value },
             used: false,
         });
-        module
+        dialect
             .static_indices
-            .insert(name.to_string(), module.statics.len() - 1);
+            .insert(name.to_string(), dialect.statics.len() - 1);
     }
     Ok(())
 }
 
 pub fn collect_fn(
+    dialect: &mut CodeLanguage,
     task: &mut CompileTask,
     module_index: usize,
     _main_module: bool,
@@ -119,8 +117,8 @@ pub fn collect_fn(
     let node_count = nodes.len();
     if !(4..=5).contains(&node_count) {
         return Err(Error::InvalidStatement {
-            file: take_file(module),
-            src: take_src(module),
+            file: module.take_file(),
+            src: module.take_src(),
             span,
         });
     }
@@ -132,16 +130,16 @@ pub fn collect_fn(
     let name_node = nodes.next().unwrap();
     let Node::Ident { span: name_span } = name_node else {
         return Err(Error::UnexpectedToken {
-            file: take_file(module),
-            src: take_src(module),
+            file: module.take_file(),
+            src: module.take_src(),
             span: name_node.span(),
         });
     };
     let name = &module.src[name_span.clone()];
-    if module.func_indices.contains_key(name) {
+    if dialect.func_indices.contains_key(name) {
         return Err(Error::DuplicateName {
-            file: take_file(module),
-            src: take_src(module),
+            file: module.take_file(),
+            src: module.take_src(),
             span: name_span,
         });
     }
@@ -154,16 +152,16 @@ pub fn collect_fn(
     } = params_node else
     {
         return Err(Error::UnexpectedToken {
-            file: take_file(module),
-            src: take_src(module),
+            file: module.take_file(),
+            src: module.take_src(),
             span: params_node.span(),
         });
     };
     let param_count = param_nodes.len();
     if param_count % 2 != 0 {
         return Err(Error::InvalidParams {
-            file: take_file(module),
-            src: take_src(module),
+            file: module.take_file(),
+            src: module.take_src(),
             span: params_span,
         });
     }
@@ -173,15 +171,15 @@ pub fn collect_fn(
         let param_name_node = param_nodes.next().unwrap();
         let Node::Ident { span: param_name_span } = param_name_node else {
             return Err(Error::InvalidParams {
-                file: take_file(module),
-                src: take_src(module),
+                file: module.take_file(),
+                src: module.take_src(),
                 span: param_name_node.span(),
             });
         };
         let Some(param_name) = &module.src[param_name_span.clone()].strip_prefix(':') else {
             return Err(Error::InvalidParams {
-                file: take_file(module),
-                src: take_src(module),
+                file: module.take_file(),
+                src: module.take_src(),
                 span: param_name_span,
             });
         };
@@ -189,8 +187,8 @@ pub fn collect_fn(
         let param_type_node = param_nodes.next().unwrap();
         let Node::Ident { span: param_type_span } = param_type_node else {
             return Err(Error::InvalidParams {
-                file: take_file(module),
-                src: take_src(module),
+                file: module.take_file(),
+                src: module.take_src(),
                 span: param_type_node.span(),
             });
         };
@@ -201,8 +199,8 @@ pub fn collect_fn(
         let return_node = nodes.next().unwrap();
         let Node::Ident { span: return_span } = return_node else {
             return Err(Error::UnexpectedToken {
-                file: take_file(module),
-                src: take_src(module),
+                file: module.take_file(),
+                src: module.take_src(),
                 span: return_node.span(),
             });
         };
@@ -211,18 +209,18 @@ pub fn collect_fn(
         Type::Unit
     };
     let expr_node = nodes.next().unwrap();
-    module.funcs.push(Func {
+    dialect.funcs.push(Func {
         public,
         params,
         return_,
         data: FuncData::Collected { node: expr_node },
         used: false,
     });
-    module.func_indices.insert(name, module.funcs.len() - 1);
+    dialect.func_indices.insert(name, dialect.funcs.len() - 1);
     Ok(())
 }
 
-fn parse_type(module: &mut Module, span: Span) -> Result<Type> {
+fn parse_type(module: &mut Module_, span: Span) -> Result<Type> {
     match &module.src[span.clone()] {
         "unit" => Ok(Type::Unit),
         "int" => Ok(Type::Int),
@@ -230,8 +228,8 @@ fn parse_type(module: &mut Module, span: Span) -> Result<Type> {
         "float" => Ok(Type::Float),
         "str" => Ok(Type::String),
         _ => Err(Error::InvalidType {
-            file: take_file(module),
-            src: take_src(module),
+            file: module.take_file(),
+            src: module.take_src(),
             span,
         }),
     }

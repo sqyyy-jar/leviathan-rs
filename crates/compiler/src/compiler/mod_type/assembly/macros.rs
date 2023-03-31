@@ -14,7 +14,10 @@ use crate::{
     util::source::Span,
 };
 
+use super::AssemblyLanguage;
+
 pub type Macro = fn(
+    data: &mut AssemblyLanguage,
     task: &mut CompileTask,
     module_index: usize,
     ir: &mut Vec<Insn>,
@@ -27,6 +30,7 @@ pub const MACROS: Map<&'static str, Macro> = phf_map! {
 };
 
 fn r#ref(
+    dialect: &mut AssemblyLanguage,
     task: &mut CompileTask,
     module_index: usize,
     ir: &mut Vec<Insn>,
@@ -79,7 +83,7 @@ fn r#ref(
         });
     };
     let static_ = &module.src[static_span.clone()];
-    let Some(static_) = module.static_indices.get(static_) else {
+    let Some(static_) = dialect.static_indices.get(static_) else {
         return Err(Error::UnknownStaticVariable {
             file: mem::take(&mut module.file),
             src: mem::take(&mut module.src),

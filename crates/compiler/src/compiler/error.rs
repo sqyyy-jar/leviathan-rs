@@ -31,7 +31,7 @@ pub enum Error {
         src: String,
         span: Span,
     },
-    UnknownModuleType {
+    UnknownModuleDialect {
         file: String,
         src: String,
         span: Span,
@@ -172,8 +172,8 @@ impl Error {
                 source = Source::from(src);
                 file
             }
-            Error::UnknownModuleType { file, src, span } => {
-                report = span_error_report(file, span, "This module type is unknown");
+            Error::UnknownModuleDialect { file, src, span } => {
+                report = span_error_report(file, span, "This module dialect is unknown");
                 source = Source::from(src);
                 file
             }

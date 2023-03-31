@@ -2,18 +2,16 @@ pub mod insns;
 pub mod macros;
 pub mod static_funcs;
 
-use std::mem;
+use std::{collections::HashMap, mem};
 
 use urban_common::opcodes::{L0_MOV, L0_MOVS};
 
 use crate::{
     compiler::{
-        cast,
         error::{Error, Result},
         intermediary::{Insn, IntermediaryStaticValue, Reg},
         mod_type::assembly::{insns::INSN_MACROS, macros::MACROS},
-        CompileTask, Dialect, Func, FuncData, ModuleType, ModuleVTable, Static, StaticData, Type,
-        UncollectedModule,
+        CompileTask, Dialect, Func, FuncData, Static, StaticData, Type, UncollectedModule,
     },
     parser::{BracketType, Node},
     util::source::Span,
@@ -21,18 +19,13 @@ use crate::{
 
 use self::static_funcs::STATIC_FUNCS;
 
-pub enum AssemblyLanguage {
-    Collected { unresolved_imports: Vec<Import> },
-    Intermediate { imports: Vec<usize> },
-}
-
-impl ModuleType for AssemblyLanguage {
-    fn vtable(&self) -> ModuleVTable {
-        ModuleVTable {
-            collect,
-            compile_module,
-        }
-    }
+pub struct AssemblyLanguage {
+    pub unresolved_imports: Vec<Import>,
+    pub imports: Vec<usize>,
+    pub func_indices: HashMap<String, usize>,
+    pub funcs: Vec<Func>,
+    pub static_indices: HashMap<String, usize>,
+    pub statics: Vec<Static>,
 }
 
 impl Dialect for AssemblyLanguage {
@@ -40,21 +33,180 @@ impl Dialect for AssemblyLanguage {
         &mut self,
         task: &mut CompileTask,
         module_index: usize,
-        module: UncollectedModule,
+        UncollectedModule { root }: UncollectedModule,
         main: bool,
     ) -> Result<()> {
-        collect(task, module_index, module, main)
+        let module = &mut task.modules[module_index];
+        let mut nodes = root.into_iter();
+        nodes.next().unwrap();
+        for node in nodes {
+            let Node::Node {
+                span,
+                type_: BracketType::Round,
+                mut sub_nodes,
+            } = node else
+            {
+                panic!("Invalid AST");
+            };
+            if sub_nodes.is_empty() {
+                return Err(Error::EmptyNode {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            }
+            let Node::Ident { span: keyword_span } = &sub_nodes[0] else {
+                return Err(Error::UnexpectedToken {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span: sub_nodes[0].span(),
+                });
+            };
+            let keyword = &module.src[keyword_span.clone()];
+            match keyword {
+                "use" => {
+                    if sub_nodes.len() != 2 {
+                        return Err(Error::InvalidStatement {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span,
+                        });
+                    }
+                    let Node::Ident { .. } = &sub_nodes[1] else {
+                        return Err(Error::UnexpectedToken {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span: sub_nodes[1].span(),
+                        });
+                    };
+                    self.unresolved_imports.push(Import {
+                        node: sub_nodes.pop().unwrap(),
+                    });
+                }
+                "static" => {
+                    if sub_nodes.len() != 3 {
+                        return Err(Error::InvalidStatement {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span,
+                        });
+                    }
+                    let Node::Ident { span: name_span } = &sub_nodes[1] else {
+                        return Err(Error::UnexpectedToken {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span: sub_nodes[1].span(),
+                        });
+                    };
+                    let name = &module.src[name_span.clone()];
+                    if self.static_indices.contains_key(name) {
+                        return Err(Error::DuplicateName {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span: name_span.clone(),
+                        });
+                    }
+                    self.statics.push(Static {
+                        data: StaticData::Collected {
+                            node: sub_nodes.pop().unwrap(),
+                        },
+                        used: false,
+                    });
+                    self.static_indices
+                        .insert(name.to_string(), self.statics.len() - 1);
+                }
+                "-label" | "+label" => {
+                    let public = keyword.starts_with('+');
+                    if sub_nodes.len() != 3 {
+                        return Err(Error::InvalidStatement {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span,
+                        });
+                    }
+                    let Node::Ident { span: name_span } = &sub_nodes[1] else {
+                        return Err(Error::UnexpectedToken {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span: sub_nodes[1].span(),
+                        });
+                    };
+                    let name = &module.src[name_span.clone()];
+                    if self.func_indices.contains_key(name) {
+                        return Err(Error::DuplicateName {
+                            file: mem::take(&mut module.file),
+                            src: mem::take(&mut module.src),
+                            span: name_span.clone(),
+                        });
+                    }
+                    self.funcs.push(Func {
+                        public,
+                        params: vec![(None, Type::Unknown)],
+                        return_: Type::Unknown,
+                        data: FuncData::Collected {
+                            node: sub_nodes.pop().unwrap(),
+                        },
+                        used: false,
+                    });
+                    self.func_indices
+                        .insert(name.to_string(), self.funcs.len() - 1);
+                    if main && name == "main" {
+                        task.main = Some((module_index, self.funcs.len() - 1));
+                    }
+                }
+                _ => {
+                    return Err(Error::InvalidKeyword {
+                        file: mem::take(&mut module.file),
+                        src: mem::take(&mut module.src),
+                        span: keyword_span.clone(),
+                    })
+                }
+            }
+        }
+        if main && task.main.is_none() {
+            return Err(Error::NoMainFound {
+                file: mem::take(&mut module.file),
+            });
+        }
+        Ok(())
     }
 
     fn compile_module(&mut self, task: &mut CompileTask, module_index: usize) -> Result<()> {
-        compile_module(task, module_index)
+        let module = &mut task.modules[module_index];
+        let statics_len = self.statics.len();
+        let funcs_len = self.funcs.len();
+        let mut imports = Vec::with_capacity(self.unresolved_imports.len());
+        for import in self.unresolved_imports.drain(..) {
+            let Node::Ident { span } = import.node else {unreachable!()};
+            let name = &module.src[span.clone()];
+            let Some(include) = task.module_indices.get(name) else {
+                return Err(Error::UnknownModule {
+                    file: mem::take(&mut module.file),
+                    src: mem::take(&mut module.src),
+                    span,
+                });
+            };
+            imports.push(*include);
+        }
+        for static_index in 0..statics_len {
+            compile_static(self, task, module_index, static_index)?;
+        }
+        for func_index in 0..funcs_len {
+            compile_label(self, task, module_index, func_index)?;
+        }
+        Ok(())
     }
 }
 
 impl Default for AssemblyLanguage {
     fn default() -> Self {
-        Self::Collected {
+        Self {
             unresolved_imports: Vec::with_capacity(0),
+            imports: Vec::with_capacity(0),
+            func_indices: HashMap::with_capacity(0),
+            funcs: Vec::with_capacity(0),
+            static_indices: HashMap::with_capacity(0),
+            statics: Vec::with_capacity(0),
         }
     }
 }
@@ -64,189 +216,14 @@ pub struct Import {
     pub node: Node,
 }
 
-fn collect(
+fn compile_static(
+    dialect: &mut AssemblyLanguage,
     task: &mut CompileTask,
     module_index: usize,
-    UncollectedModule { root }: UncollectedModule,
-    main: bool,
+    static_index: usize,
 ) -> Result<()> {
     let module = &mut task.modules[module_index];
-    let mut nodes = root.into_iter();
-    nodes.next().unwrap();
-    for node in nodes {
-        let Node::Node {
-            span,
-            type_: BracketType::Round,
-            mut sub_nodes,
-        } = node else
-        {
-            panic!("Invalid AST");
-        };
-        if sub_nodes.is_empty() {
-            return Err(Error::EmptyNode {
-                file: mem::take(&mut module.file),
-                src: mem::take(&mut module.src),
-                span,
-            });
-        }
-        let Node::Ident { span: keyword_span } = &sub_nodes[0] else {
-            return Err(Error::UnexpectedToken {
-                file: mem::take(&mut module.file),
-                src: mem::take(&mut module.src),
-                span: sub_nodes[0].span(),
-            });
-        };
-        let keyword = &module.src[keyword_span.clone()];
-        match keyword {
-            "use" => {
-                if sub_nodes.len() != 2 {
-                    return Err(Error::InvalidStatement {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
-                        span,
-                    });
-                }
-                let Node::Ident { .. } = &sub_nodes[1] else {
-                    return Err(Error::UnexpectedToken {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
-                        span: sub_nodes[1].span(),
-                    });
-                };
-                let AssemblyLanguage::Collected { unresolved_imports } =
-                    cast::<AssemblyLanguage>(&mut module.type_).as_mut() else
-                {
-                    unreachable!()
-                };
-                unresolved_imports.push(Import {
-                    node: sub_nodes.pop().unwrap(),
-                });
-            }
-            "static" => {
-                if sub_nodes.len() != 3 {
-                    return Err(Error::InvalidStatement {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
-                        span,
-                    });
-                }
-                let Node::Ident { span: name_span } = &sub_nodes[1] else {
-                    return Err(Error::UnexpectedToken {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
-                        span: sub_nodes[1].span(),
-                    });
-                };
-                let name = &module.src[name_span.clone()];
-                if module.static_indices.contains_key(name) {
-                    return Err(Error::DuplicateName {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
-                        span: name_span.clone(),
-                    });
-                }
-                module.statics.push(Static {
-                    data: StaticData::Collected {
-                        node: sub_nodes.pop().unwrap(),
-                    },
-                    used: false,
-                });
-                module
-                    .static_indices
-                    .insert(name.to_string(), module.statics.len() - 1);
-            }
-            "-label" | "+label" => {
-                let public = keyword.starts_with('+');
-                if sub_nodes.len() != 3 {
-                    return Err(Error::InvalidStatement {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
-                        span,
-                    });
-                }
-                let Node::Ident { span: name_span } = &sub_nodes[1] else {
-                    return Err(Error::UnexpectedToken {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
-                        span: sub_nodes[1].span(),
-                    });
-                };
-                let name = &module.src[name_span.clone()];
-                if module.func_indices.contains_key(name) {
-                    return Err(Error::DuplicateName {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
-                        span: name_span.clone(),
-                    });
-                }
-                module.funcs.push(Func {
-                    public,
-                    params: vec![(None, Type::Unknown)],
-                    return_: Type::Unknown,
-                    data: FuncData::Collected {
-                        node: sub_nodes.pop().unwrap(),
-                    },
-                    used: false,
-                });
-                module
-                    .func_indices
-                    .insert(name.to_string(), module.funcs.len() - 1);
-                if main && name == "main" {
-                    task.main = Some((module_index, module.funcs.len() - 1));
-                }
-            }
-            _ => {
-                return Err(Error::InvalidKeyword {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
-                    span: keyword_span.clone(),
-                })
-            }
-        }
-    }
-    if main && task.main.is_none() {
-        return Err(Error::NoMainFound {
-            file: mem::take(&mut module.file),
-        });
-    }
-    Ok(())
-}
-
-fn compile_module(task: &mut CompileTask, module_index: usize) -> Result<()> {
-    let module = &mut task.modules[module_index];
-    let statics_len = module.statics.len();
-    let funcs_len = module.funcs.len();
-    let AssemblyLanguage::Collected { unresolved_imports } =
-        cast::<AssemblyLanguage>(&mut module.type_).as_mut() else
-    {
-        unreachable!()
-    };
-    let mut imports = Vec::with_capacity(unresolved_imports.len());
-    for import in unresolved_imports.drain(..) {
-        let Node::Ident { span } = import.node else {unreachable!()};
-        let name = &module.src[span.clone()];
-        let Some(include) = task.module_indices.get(name) else {
-            return Err(Error::UnknownModule {
-                file: mem::take(&mut module.file),
-                src: mem::take(&mut module.src),
-                span,
-            });
-        };
-        imports.push(*include);
-    }
-    module.type_ = Box::new(AssemblyLanguage::Intermediate { imports });
-    for static_index in 0..statics_len {
-        compile_static(task, module_index, static_index)?;
-    }
-    for func_index in 0..funcs_len {
-        compile_label(task, module_index, func_index)?;
-    }
-    Ok(())
-}
-
-fn compile_static(task: &mut CompileTask, module_index: usize, static_index: usize) -> Result<()> {
-    let module = &mut task.modules[module_index];
-    let Static { data, used: _ } = &mut module.statics[static_index];
+    let Static { data, used: _ } = &mut dialect.statics[static_index];
     let StaticData::Collected { node } = mem::replace(
         data,
         StaticData::Intermediary {
@@ -320,14 +297,18 @@ fn compile_static(task: &mut CompileTask, module_index: usize, static_index: usi
                 });
             };
             let value = (*static_func)(task, module_index, span.clone(), sub_nodes)?;
-            task.modules[module_index].statics[static_index].data =
-                StaticData::Intermediary { value };
+            dialect.statics[static_index].data = StaticData::Intermediary { value };
             Ok(())
         }
     }
 }
 
-fn compile_label(task: &mut CompileTask, module_index: usize, func_index: usize) -> Result<()> {
+fn compile_label(
+    dialect: &mut AssemblyLanguage,
+    task: &mut CompileTask,
+    module_index: usize,
+    func_index: usize,
+) -> Result<()> {
     let module = &mut task.modules[module_index];
     let Func {
         public: _,
@@ -335,7 +316,7 @@ fn compile_label(task: &mut CompileTask, module_index: usize, func_index: usize)
         return_: _,
         data,
         used: _,
-    } = &mut module.funcs[func_index];
+    } = &mut dialect.funcs[func_index];
     let FuncData::Collected { node } = mem::replace(
         data,
         FuncData::Intermediary {
@@ -348,14 +329,14 @@ fn compile_label(task: &mut CompileTask, module_index: usize, func_index: usize)
     match node {
         Node::Ident { span } => {
             let name = &module.src[span.clone()];
-            let Some(static_index) = module.static_indices.get(name) else {
+            let Some(static_index) = dialect.static_indices.get(name) else {
                 return Err(Error::UnknownStaticVariable {
                     file: mem::take(&mut module.file),
                     src: mem::take(&mut module.src),
                     span,
                 });
             };
-            let static_ = &mut module.statics[*static_index];
+            let static_ = &mut dialect.statics[*static_index];
             let StaticData::Intermediary { value } = &static_.data else {unreachable!()};
             match value {
                 IntermediaryStaticValue::Int(_)
@@ -389,7 +370,7 @@ fn compile_label(task: &mut CompileTask, module_index: usize, func_index: usize)
                     if (-(1 << 22)..((1 << 22) - 1)).contains(&value) {
                         ir.push(Insn::Raw(L0_MOVS | value as u32 & ((1 << 22) - 1)));
                     } else {
-                        module.statics.push(Static {
+                        dialect.statics.push(Static {
                             data: StaticData::Intermediary {
                                 value: IntermediaryStaticValue::Int(value),
                             },
@@ -397,7 +378,7 @@ fn compile_label(task: &mut CompileTask, module_index: usize, func_index: usize)
                         });
                         ir.push(Insn::LoadStatic {
                             dst: Reg::R0,
-                            index: module.statics.len() - 1,
+                            index: dialect.statics.len() - 1,
                         });
                     }
                 }
@@ -405,7 +386,7 @@ fn compile_label(task: &mut CompileTask, module_index: usize, func_index: usize)
                     if value < (1 << 22) {
                         ir.push(Insn::Raw(L0_MOV | value as u32 & ((1 << 22) - 1)))
                     } else {
-                        module.statics.push(Static {
+                        dialect.statics.push(Static {
                             data: StaticData::Intermediary {
                                 value: IntermediaryStaticValue::UInt(value),
                             },
@@ -413,12 +394,12 @@ fn compile_label(task: &mut CompileTask, module_index: usize, func_index: usize)
                         });
                         ir.push(Insn::LoadStatic {
                             dst: Reg::R0,
-                            index: module.statics.len() - 1,
+                            index: dialect.statics.len() - 1,
                         });
                     }
                 }
                 Node::Float { value, .. } => {
-                    module.statics.push(Static {
+                    dialect.statics.push(Static {
                         data: StaticData::Intermediary {
                             value: IntermediaryStaticValue::Float(value),
                         },
@@ -426,7 +407,7 @@ fn compile_label(task: &mut CompileTask, module_index: usize, func_index: usize)
                     });
                     ir.push(Insn::LoadStatic {
                         dst: Reg::R0,
-                        index: module.statics.len() - 1,
+                        index: dialect.statics.len() - 1,
                     });
                 }
                 _ => unreachable!(),
@@ -436,7 +417,7 @@ fn compile_label(task: &mut CompileTask, module_index: usize, func_index: usize)
             Ok(())
         }
         Node::String { value, .. } => {
-            module.statics.push(Static {
+            dialect.statics.push(Static {
                 data: StaticData::Intermediary {
                     value: IntermediaryStaticValue::String(value),
                 },
@@ -444,7 +425,7 @@ fn compile_label(task: &mut CompileTask, module_index: usize, func_index: usize)
             });
             ir.push(Insn::LdStaticAbsAddr {
                 dst: Reg::R0,
-                index: module.statics.len() - 1,
+                index: dialect.statics.len() - 1,
             });
             ir.push(Insn::Ret);
             *data = FuncData::Intermediary { ir };
@@ -462,14 +443,15 @@ fn compile_label(task: &mut CompileTask, module_index: usize, func_index: usize)
                     span,
                 });
             }
-            compile_label_node(task, module_index, &mut ir, sub_nodes, span, 0)?;
-            task.modules[module_index].funcs[func_index].data = FuncData::Intermediary { ir };
+            compile_label_node(dialect, task, module_index, &mut ir, sub_nodes, span, 0)?;
+            dialect.funcs[func_index].data = FuncData::Intermediary { ir };
             Ok(())
         }
     }
 }
 
 fn compile_label_node(
+    dialect: &mut AssemblyLanguage,
     task: &mut CompileTask,
     module_index: usize,
     ir: &mut Vec<Insn>,
@@ -523,7 +505,7 @@ fn compile_label_node(
                                 if (-(1 << 22)..((1 << 22) - 1)).contains(&value) {
                                     ir.push(Insn::Raw(L0_MOVS | value as u32 & ((1 << 22) - 1)));
                                 } else {
-                                    module.statics.push(Static {
+                                    dialect.statics.push(Static {
                                         data: StaticData::Intermediary {
                                             value: IntermediaryStaticValue::Int(value),
                                         },
@@ -531,7 +513,7 @@ fn compile_label_node(
                                     });
                                     ir.push(Insn::LoadStatic {
                                         dst: Reg::R0,
-                                        index: module.statics.len() - 1,
+                                        index: dialect.statics.len() - 1,
                                     });
                                 }
                             }
@@ -539,7 +521,7 @@ fn compile_label_node(
                                 if value < (1 << 22) {
                                     ir.push(Insn::Raw(L0_MOV | value as u32 & ((1 << 22) - 1)))
                                 } else {
-                                    module.statics.push(Static {
+                                    dialect.statics.push(Static {
                                         data: StaticData::Intermediary {
                                             value: IntermediaryStaticValue::UInt(value),
                                         },
@@ -547,12 +529,12 @@ fn compile_label_node(
                                     });
                                     ir.push(Insn::LoadStatic {
                                         dst: Reg::R0,
-                                        index: module.statics.len() - 1,
+                                        index: dialect.statics.len() - 1,
                                     });
                                 }
                             }
                             Node::Float { value, .. } => {
-                                module.statics.push(Static {
+                                dialect.statics.push(Static {
                                     data: StaticData::Intermediary {
                                         value: IntermediaryStaticValue::Float(value),
                                     },
@@ -560,7 +542,7 @@ fn compile_label_node(
                                 });
                                 ir.push(Insn::LoadStatic {
                                     dst: Reg::R0,
-                                    index: module.statics.len() - 1,
+                                    index: dialect.statics.len() - 1,
                                 });
                             }
                             _ => unreachable!(),
@@ -574,7 +556,7 @@ fn compile_label_node(
                                 span,
                             });
                         }
-                        module.statics.push(Static {
+                        dialect.statics.push(Static {
                             data: StaticData::Intermediary {
                                 value: IntermediaryStaticValue::String(value),
                             },
@@ -582,7 +564,7 @@ fn compile_label_node(
                         });
                         ir.push(Insn::LdStaticAbsAddr {
                             dst: Reg::R0,
-                            index: module.statics.len() - 1,
+                            index: dialect.statics.len() - 1,
                         });
                     }
                     Node::Node {
@@ -597,7 +579,15 @@ fn compile_label_node(
                                 span,
                             });
                         }
-                        compile_label_node(task, module_index, ir, sub_nodes, span, depth + 1)?;
+                        compile_label_node(
+                            dialect,
+                            task,
+                            module_index,
+                            ir,
+                            sub_nodes,
+                            span,
+                            depth + 1,
+                        )?;
                         module = &mut task.modules[module_index];
                     }
                 }
@@ -685,7 +675,7 @@ fn compile_label_node(
                     span,
                 });
             }
-            compile_label_node(task, module_index, ir, sub_nodes, span, depth + 1)?;
+            compile_label_node(dialect, task, module_index, ir, sub_nodes, span, depth + 1)?;
             ir.push(Insn::CreatePoint { pos });
             if depth == 0 {
                 ir.push(Insn::Ret);
@@ -773,7 +763,7 @@ fn compile_label_node(
                     span,
                 });
             }
-            compile_label_node(task, module_index, ir, sub_nodes, span, depth + 1)?;
+            compile_label_node(dialect, task, module_index, ir, sub_nodes, span, depth + 1)?;
             ir.push(Insn::CreatePoint { pos: cond_pos });
             ir.push(insn);
             if depth == 0 {
@@ -860,7 +850,7 @@ fn compile_label_node(
                     span,
                 });
             }
-            compile_label_node(task, module_index, ir, sub_nodes, span, depth + 1)?;
+            compile_label_node(dialect, task, module_index, ir, sub_nodes, span, depth + 1)?;
             ir.push(insn);
             if depth == 0 {
                 ir.push(Insn::Ret);
@@ -868,7 +858,7 @@ fn compile_label_node(
         }
         _ => {
             if let Some(macro_) = MACROS.get(name) {
-                (*macro_)(task, module_index, ir, span, sub_nodes)?;
+                (*macro_)(dialect, task, module_index, ir, span, sub_nodes)?;
                 if depth == 0 {
                     ir.push(Insn::Ret);
                 }
@@ -887,7 +877,7 @@ fn compile_label_node(
                 }
             }
             if sub_nodes.len() == 1 {
-                if let Some(func_index) = module.func_indices.get(name) {
+                if let Some(func_index) = dialect.func_indices.get(name) {
                     ir.push(Insn::BranchLabelLinked {
                         module_index,
                         func_index: *func_index,
@@ -899,21 +889,12 @@ fn compile_label_node(
                 }
             }
             let name = name.to_string();
-            let AssemblyLanguage::Intermediate { imports } =
-                cast::<AssemblyLanguage>(&mut module.type_).as_mut() else
-            {
-                unreachable!()
-            };
-            for i in 0..imports.len() {
-                let AssemblyLanguage::Intermediate { imports } =
-                    cast::<AssemblyLanguage>(&mut module.type_).as_mut() else
-                {
-                    unreachable!()
-                };
-                let i = imports[i];
+            for i in 0..dialect.imports.len() {
+                let i = dialect.imports[i];
                 let include = &task.modules[i];
-                if let Some(func_index) = include.func_indices.get(&name) {
-                    if include.funcs[*func_index].public {
+                // todo
+                if let Some(func_index) = /*include.*/ dialect.func_indices.get(&name) {
+                    if dialect.funcs[*func_index].public {
                         ir.push(Insn::BranchLabelLinked {
                             module_index: i,
                             func_index: *func_index,
