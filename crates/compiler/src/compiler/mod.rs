@@ -10,14 +10,14 @@ use phf::{phf_map, Map};
 use crate::parser::{BareModule, BracketType, Node};
 
 use self::{
+    dialect::{assembly::AssemblyLanguage, code::CodeLanguage},
     error::{Error, Result},
     intermediary::{Insn, IntermediaryStaticValue, Reg},
-    mod_type::{assembly::AssemblyLanguage, code::CodeLanguage},
 };
 
+pub mod dialect;
 pub mod error;
 pub mod intermediary;
-pub mod mod_type;
 
 pub const DIALECTS: Map<&str, fn() -> Box<dyn Dialect>> = phf_map! {
     "assembly" => || Box::<AssemblyLanguage>::default(),

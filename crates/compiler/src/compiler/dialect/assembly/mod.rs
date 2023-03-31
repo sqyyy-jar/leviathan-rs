@@ -10,7 +10,7 @@ use crate::{
     compiler::{
         error::{Error, Result},
         intermediary::{Insn, IntermediaryStaticValue, Reg},
-        mod_type::assembly::{insns::INSN_MACROS, macros::MACROS},
+        dialect::assembly::{insns::INSN_MACROS, macros::MACROS},
         CompileTask, Dialect, Func, FuncData, Static, StaticData, Type, UncollectedModule,
     },
     parser::{BracketType, Node},
