@@ -9,12 +9,13 @@ Every module contains the following:
 
 * `file`: the name of the source file
 * `src`: the source as a string
-* `func_indices`: lookup table for function indices
-	* May be replaced by dialect trait-functions
-* `static_indices`: lookup table for static variable indices
-	* May be replaced by dialect trait-functions
 * `dialect`: the boxed instance of the dialect
 	* Optional, is swapped with none during interaction
+* `lookup_callable`: function to lookup function-like elements of a dialect
+	* returns an index to the element
+	* takes name of the element as parameter
+	* only returns if element is public
+* (in the future) `lookup_static`
 
 # To do
 

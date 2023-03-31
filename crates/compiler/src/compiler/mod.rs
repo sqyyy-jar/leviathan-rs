@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     fmt::Debug,
     io::{Seek, Write},
-    mem::{self},
+    mem,
 };
 
 use phf::{phf_map, Map};
@@ -34,6 +34,8 @@ pub trait Dialect {
     ) -> Result<()>;
 
     fn compile_module(&mut self, task: &mut CompileTask, module_index: usize) -> Result<()>;
+
+    fn lookup_callable(&self, name: &str) -> Option<usize>;
 }
 
 #[derive(Debug)]

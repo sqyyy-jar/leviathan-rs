@@ -22,8 +22,8 @@ use self::static_funcs::STATIC_FUNCS;
 pub struct AssemblyLanguage {
     pub unresolved_imports: Vec<Import>,
     pub imports: Vec<usize>,
-    pub func_indices: HashMap<String, usize>,
-    pub funcs: Vec<Func>,
+    pub label_indices: HashMap<String, usize>,
+    pub labels: Vec<Func>,
     pub static_indices: HashMap<String, usize>,
     pub statics: Vec<Static>,
 }
@@ -132,14 +132,14 @@ impl Dialect for AssemblyLanguage {
                         });
                     };
                     let name = &module.src[name_span.clone()];
-                    if self.func_indices.contains_key(name) {
+                    if self.label_indices.contains_key(name) {
                         return Err(Error::DuplicateName {
                             file: mem::take(&mut module.file),
                             src: mem::take(&mut module.src),
                             span: name_span.clone(),
                         });
                     }
-                    self.funcs.push(Func {
+                    self.labels.push(Func {
                         public,
                         params: vec![(None, Type::Unknown)],
                         return_: Type::Unknown,
@@ -148,10 +148,10 @@ impl Dialect for AssemblyLanguage {
                         },
                         used: false,
                     });
-                    self.func_indices
-                        .insert(name.to_string(), self.funcs.len() - 1);
+                    self.label_indices
+                        .insert(name.to_string(), self.labels.len() - 1);
                     if main && name == "main" {
-                        task.main = Some((module_index, self.funcs.len() - 1));
+                        task.main = Some((module_index, self.labels.len() - 1));
                     }
                 }
                 _ => {
@@ -174,7 +174,7 @@ impl Dialect for AssemblyLanguage {
     fn compile_module(&mut self, task: &mut CompileTask, module_index: usize) -> Result<()> {
         let module = &mut task.modules[module_index];
         let statics_len = self.statics.len();
-        let funcs_len = self.funcs.len();
+        let funcs_len = self.labels.len();
         let mut imports = Vec::with_capacity(self.unresolved_imports.len());
         for import in self.unresolved_imports.drain(..) {
             let Node::Ident { span } = import.node else {unreachable!()};
@@ -196,6 +196,16 @@ impl Dialect for AssemblyLanguage {
         }
         Ok(())
     }
+
+    fn lookup_callable(&self, name: &str) -> Option<usize> {
+        let Some(index) = self.label_indices.get(name).cloned() else {
+            return None;
+        };
+        if !self.labels[index].public {
+            return None;
+        }
+        Some(index)
+    }
 }
 
 impl Default for AssemblyLanguage {
@@ -203,8 +213,8 @@ impl Default for AssemblyLanguage {
         Self {
             unresolved_imports: Vec::with_capacity(0),
             imports: Vec::with_capacity(0),
-            func_indices: HashMap::with_capacity(0),
-            funcs: Vec::with_capacity(0),
+            label_indices: HashMap::with_capacity(0),
+            labels: Vec::with_capacity(0),
             static_indices: HashMap::with_capacity(0),
             statics: Vec::with_capacity(0),
         }
@@ -316,7 +326,7 @@ fn compile_label(
         return_: _,
         data,
         used: _,
-    } = &mut dialect.funcs[func_index];
+    } = &mut dialect.labels[func_index];
     let FuncData::Collected { node } = mem::replace(
         data,
         FuncData::Intermediary {
@@ -444,7 +454,7 @@ fn compile_label(
                 });
             }
             compile_label_node(dialect, task, module_index, &mut ir, sub_nodes, span, 0)?;
-            dialect.funcs[func_index].data = FuncData::Intermediary { ir };
+            dialect.labels[func_index].data = FuncData::Intermediary { ir };
             Ok(())
         }
     }
@@ -877,7 +887,7 @@ fn compile_label_node(
                 }
             }
             if sub_nodes.len() == 1 {
-                if let Some(func_index) = dialect.func_indices.get(name) {
+                if let Some(func_index) = dialect.label_indices.get(name) {
                     ir.push(Insn::BranchLabelLinked {
                         module_index,
                         func_index: *func_index,
@@ -889,21 +899,17 @@ fn compile_label_node(
                 }
             }
             let name = name.to_string();
-            for i in 0..dialect.imports.len() {
-                let i = dialect.imports[i];
-                let include = &task.modules[i];
-                // todo
-                if let Some(func_index) = /*include.*/ dialect.func_indices.get(&name) {
-                    if dialect.funcs[*func_index].public {
-                        ir.push(Insn::BranchLabelLinked {
-                            module_index: i,
-                            func_index: *func_index,
-                        });
-                        if depth == 0 {
-                            ir.push(Insn::Ret);
-                        }
-                        return Ok(());
+            for i in dialect.imports.iter().cloned() {
+                let include = &mut task.modules[i];
+                if let Some(func_index) = include.dialect.as_mut().unwrap().lookup_callable(&name) {
+                    ir.push(Insn::BranchLabelLinked {
+                        module_index: i,
+                        func_index,
+                    });
+                    if depth == 0 {
+                        ir.push(Insn::Ret);
                     }
+                    return Ok(());
                 }
                 module = &mut task.modules[module_index];
             }

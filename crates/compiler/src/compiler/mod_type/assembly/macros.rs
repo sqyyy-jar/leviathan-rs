@@ -1,5 +1,3 @@
-#![allow(clippy::ptr_arg)]
-
 use std::mem;
 
 use phf::{phf_map, Map};

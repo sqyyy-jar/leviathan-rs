@@ -145,6 +145,16 @@ impl Dialect for CodeLanguage {
         }
         Ok(())
     }
+
+    fn lookup_callable(&self, name: &str) -> Option<usize> {
+        let Some(index) = self.func_indices.get(name).cloned() else {
+            return None;
+        };
+        if !self.funcs[index].public {
+            return None;
+        }
+        Some(index)
+    }
 }
 
 fn compile_static(module: &mut Module_, node: Node) -> Result<IntermediaryStaticValue> {
