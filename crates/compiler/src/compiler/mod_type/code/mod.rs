@@ -9,7 +9,7 @@ use crate::{
         cast,
         error::{Error, Result},
         intermediary::{Insn, IntermediaryStaticValue},
-        CompileTask, Func, FuncData, Module, ModuleType, ModuleVTable, StaticData,
+        CompileTask, Dialect, Func, FuncData, Module, ModuleType, ModuleVTable, StaticData,
         UncollectedModule,
     },
     parser::{BracketType, Node},
@@ -52,6 +52,22 @@ impl ModuleType for CodeLanguage {
             collect,
             compile_module,
         }
+    }
+}
+
+impl Dialect for CodeLanguage {
+    fn collect(
+        &mut self,
+        task: &mut CompileTask,
+        module_index: usize,
+        module: UncollectedModule,
+        main: bool,
+    ) -> Result<()> {
+        collect(task, module_index, module, main)
+    }
+
+    fn compile_module(&mut self, task: &mut CompileTask, module_index: usize) -> Result<()> {
+        compile_module(task, module_index)
     }
 }
 

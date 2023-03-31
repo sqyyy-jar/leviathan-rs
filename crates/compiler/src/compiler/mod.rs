@@ -35,8 +35,25 @@ pub const MODULE_TYPES: Map<&str, fn() -> Box<dyn ModuleType>> = phf_map! {
     "code" => || Box::<CodeLanguage>::default(),
 };
 
+pub const DIALECTS: Map<&str, fn() -> Box<dyn Dialect>> = phf_map! {
+    "assembly" => || Box::<AssemblyLanguage>::default(),
+    "code" => || Box::<CodeLanguage>::default(),
+};
+
 pub trait ModuleType {
     fn vtable(&self) -> ModuleVTable;
+}
+
+pub trait Dialect {
+    fn collect(
+        &mut self,
+        task: &mut CompileTask,
+        module_index: usize,
+        module: UncollectedModule,
+        main: bool,
+    ) -> Result<()>;
+
+    fn compile_module(&mut self, task: &mut CompileTask, module_index: usize) -> Result<()>;
 }
 
 pub fn cast<T: ModuleType>(src: &mut Box<dyn ModuleType>) -> &mut Box<T> {
@@ -556,6 +573,22 @@ impl Module {
             statics: Vec::with_capacity(0),
             type_,
             used: false,
+        }
+    }
+}
+
+pub struct Module_ {
+    pub file: String,
+    pub src: String,
+    pub dialect: Option<Box<dyn Dialect>>,
+}
+
+impl Module_ {
+    pub fn new(file: String, src: String, dialect: Box<dyn Dialect>) -> Self {
+        Self {
+            file,
+            src,
+            dialect: Some(dialect),
         }
     }
 }

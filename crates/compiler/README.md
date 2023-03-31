@@ -1,7 +1,6 @@
 # Dialects
 
-> **Warning**
-> 
+> **Warning**  
 > Work in progress
 
 The compiler contains different dialects. Every source file or module has a module type which represents the dialect. Every dialect should be binary-compatible with [Urban engine](https://github.com/sqyyy-jar/urban-engine/).

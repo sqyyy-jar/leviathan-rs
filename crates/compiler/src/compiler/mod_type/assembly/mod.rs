@@ -12,7 +12,7 @@ use crate::{
         error::{Error, Result},
         intermediary::{Insn, IntermediaryStaticValue, Reg},
         mod_type::assembly::{insns::INSN_MACROS, macros::MACROS},
-        CompileTask, Func, FuncData, ModuleType, ModuleVTable, Static, StaticData, Type,
+        CompileTask, Dialect, Func, FuncData, ModuleType, ModuleVTable, Static, StaticData, Type,
         UncollectedModule,
     },
     parser::{BracketType, Node},
@@ -32,6 +32,22 @@ impl ModuleType for AssemblyLanguage {
             collect,
             compile_module,
         }
+    }
+}
+
+impl Dialect for AssemblyLanguage {
+    fn collect(
+        &mut self,
+        task: &mut CompileTask,
+        module_index: usize,
+        module: UncollectedModule,
+        main: bool,
+    ) -> Result<()> {
+        collect(task, module_index, module, main)
+    }
+
+    fn compile_module(&mut self, task: &mut CompileTask, module_index: usize) -> Result<()> {
+        compile_module(task, module_index)
     }
 }
 
