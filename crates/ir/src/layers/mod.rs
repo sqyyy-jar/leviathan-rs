@@ -7,7 +7,7 @@ pub mod error;
 pub mod lower;
 pub mod upper;
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Coord {
     pub module: usize,
     pub element: usize,

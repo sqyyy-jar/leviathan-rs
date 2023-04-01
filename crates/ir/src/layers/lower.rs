@@ -7,6 +7,7 @@ pub struct LowerLayer {
     pub ops: Vec<LowOp>,
 }
 
+#[derive(Clone, Copy)]
 pub struct Reg {
     value: u8,
 }
@@ -34,6 +35,7 @@ pub enum LowOp {
     BranchCoordGreater { reg: Reg, coord: usize },
     BranchCoordLessEqual { reg: Reg, coord: usize },
     BranchCoordGreaterEqual { reg: Reg, coord: usize },
+    Call { coord: Coord },
     LoadStatic64 { dst: Reg, coord: Coord },
     LoadLocalStatic64 { dst: Reg, coord: usize },
     LoadStaticAddress { dst: Reg, coord: Coord },

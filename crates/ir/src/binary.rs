@@ -1,13 +1,13 @@
 use std::{
     collections::HashMap,
-    io::{Result, Seek, Write},
+    io::{Result, Seek, SeekFrom, Write},
 };
 
 use byteorder::{LittleEndian, WriteBytesExt};
 use urban_common::{
     binary::EXECUTABLE,
     opcodes::{
-        L0_DIV, L0_DIVS, L0_MOVS, L0_MUL, L0_REM, L0_REMS, L0_SUB, L1_INT, L1_LDR, L1_LDRB,
+        L0_DIV, L0_DIVS, L0_LDR, L0_MOVS, L0_MUL, L0_REM, L0_REMS, L0_SUB, L1_INT, L1_LDR, L1_LDRB,
         L1_LDRH, L1_LDRW, L1_NCALL, L1_SHL, L1_SHR, L1_SHRS, L1_STR, L1_STRB, L1_STRH, L1_STRW,
         L1_VCALL, L2_ADD, L2_ADDF, L2_AND, L2_CMP, L2_CMPF, L2_CMPS, L2_DIV, L2_DIVF, L2_DIVS,
         L2_MUL, L2_MULF, L2_OR, L2_REM, L2_REMF, L2_REMS, L2_SHL, L2_SHR, L2_SHRS, L2_SUB, L2_SUBF,
@@ -17,7 +17,10 @@ use urban_common::{
 };
 
 use crate::{
-    layers::lower::LowOp,
+    layers::{
+        lower::{LowOp, Reg},
+        Coord,
+    },
     util::{alignment, MaxBitsU32},
 };
 
@@ -29,12 +32,13 @@ impl Binary {
     pub fn assemble(&self, out: &mut (impl Write + Seek)) -> Result<()> {
         const _FLAGS_OFFSET: u64 = 4;
         const _ENTRYPOINT_OFFSET: u64 = 8;
-        const _HEADER_LENGTH: u64 = 16;
+        const HEADER_LENGTH: u64 = 16;
         out.write_all(b"\0urb")?;
         out.write_u32::<LittleEndian>(EXECUTABLE)?;
         out.write_u64::<LittleEndian>(0)?;
         let mut ptr = 0usize;
         let mut modules = HashMap::with_capacity(self.modules.len());
+        let mut post_procs = Vec::with_capacity(0);
         for (module_index, module) in &self.modules {
             let mut statics = HashMap::with_capacity(module.statics.len());
             let mut funcs = HashMap::with_capacity(module.funcs.len());
@@ -48,23 +52,123 @@ impl Binary {
                     locals.insert(local_index, ptr);
                     local.assemble(&mut ptr, out)?;
                 }
-                funcs.insert(*func_index, ptr);
+                let mut coords = HashMap::with_capacity(0);
+                let mut local_post_procs = Vec::with_capacity(0);
+                let func_ptr = ptr;
+                funcs.insert(*func_index, func_ptr);
                 for op in &func.ops {
                     match op {
-                        LowOp::PutCoord { coord } => todo!(),
-                        LowOp::BranchCoord { coord } => todo!(),
-                        LowOp::BranchCoordIfNonZero { reg, coord } => todo!(),
-                        LowOp::BranchCoordIfZero { reg, coord } => todo!(),
-                        LowOp::BranchCoordEqual { reg, coord } => todo!(),
-                        LowOp::BranchCoordNonEqual { reg, coord } => todo!(),
-                        LowOp::BranchCoordLess { reg, coord } => todo!(),
-                        LowOp::BranchCoordGreater { reg, coord } => todo!(),
-                        LowOp::BranchCoordLessEqual { reg, coord } => todo!(),
-                        LowOp::BranchCoordGreaterEqual { reg, coord } => todo!(),
-                        LowOp::LoadStatic64 { dst, coord } => todo!(),
-                        LowOp::LoadLocalStatic64 { dst, coord } => todo!(),
-                        LowOp::LoadStaticAddress { dst, coord } => todo!(),
-                        LowOp::LoadLocalStaticAddress { dst, coord } => todo!(),
+                        LowOp::PutCoord { coord } => {
+                            coords.insert(*coord, ptr);
+                        }
+                        LowOp::BranchCoord { coord } => {
+                            local_post_procs
+                                .push(LocalPostProc::BranchCoord { ptr, coord: *coord });
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                        }
+                        LowOp::BranchCoordIfNonZero { reg, coord } => {
+                            local_post_procs.push(LocalPostProc::BranchCoordIfNonZero {
+                                ptr,
+                                reg: *reg,
+                                coord: *coord,
+                            });
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                        }
+                        LowOp::BranchCoordIfZero { reg, coord } => {
+                            local_post_procs.push(LocalPostProc::BranchCoordIfZero {
+                                ptr,
+                                reg: *reg,
+                                coord: *coord,
+                            });
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                        }
+                        LowOp::BranchCoordEqual { reg, coord } => {
+                            local_post_procs.push(LocalPostProc::BranchCoordEqual {
+                                ptr,
+                                reg: *reg,
+                                coord: *coord,
+                            });
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                        }
+                        LowOp::BranchCoordNonEqual { reg, coord } => {
+                            local_post_procs.push(LocalPostProc::BranchCoordNonEqual {
+                                ptr,
+                                reg: *reg,
+                                coord: *coord,
+                            });
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                        }
+                        LowOp::BranchCoordLess { reg, coord } => {
+                            local_post_procs.push(LocalPostProc::BranchCoordLess {
+                                ptr,
+                                reg: *reg,
+                                coord: *coord,
+                            });
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                        }
+                        LowOp::BranchCoordGreater { reg, coord } => {
+                            local_post_procs.push(LocalPostProc::BranchCoordGreater {
+                                ptr,
+                                reg: *reg,
+                                coord: *coord,
+                            });
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                        }
+                        LowOp::BranchCoordLessEqual { reg, coord } => {
+                            local_post_procs.push(LocalPostProc::BranchCoordLessEqual {
+                                ptr,
+                                reg: *reg,
+                                coord: *coord,
+                            });
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                        }
+                        LowOp::BranchCoordGreaterEqual { reg, coord } => {
+                            local_post_procs.push(LocalPostProc::BranchCoordGreaterEqual {
+                                ptr,
+                                reg: *reg,
+                                coord: *coord,
+                            });
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                        }
+                        LowOp::LoadStatic64 { dst, coord } => {
+                            post_procs.push(GlobalPostProc::LoadStatic64 {
+                                ptr,
+                                dst: *dst,
+                                coord: *coord,
+                            });
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                        }
+                        LowOp::LoadLocalStatic64 { dst, coord } => {
+                            let offset = (locals[coord] as isize - ptr as isize) / 4;
+                            if (-(1 << 21)..(1 << 21) - 1).contains(&offset) {
+                                emit(&mut ptr, out, L0_LDR | dst.value() | offset.cut(22) << 5)?;
+                            } else {
+                                todo!()
+                            }
+                        }
+                        LowOp::LoadStaticAddress { dst, coord } => {
+                            post_procs.push(GlobalPostProc::LoadStaticAddress {
+                                ptr,
+                                dst: *dst,
+                                coord: *coord,
+                            });
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                        }
+                        LowOp::LoadLocalStaticAddress { dst, coord } => {
+                            local_post_procs.push(LocalPostProc::LoadLocalStaticAddress {
+                                ptr,
+                                dst: *dst,
+                                coord: *coord,
+                            });
+                            emit(&mut ptr, out, 0xFFFF_FFFF)?;
+                        }
+                        LowOp::Call { coord } => {
+                            post_procs.push(GlobalPostProc::Call { ptr, coord: *coord });
+                        }
                         LowOp::AddImmediate {
                             dst,
                             lhs: src,
@@ -331,6 +435,23 @@ impl Binary {
                         LowOp::Return => emit(&mut ptr, out, L5_RET)?,
                     }
                 }
+                let func_end_ptr = ptr as u64;
+                for local_post_proc in local_post_procs {
+                    match local_post_proc {
+                        LocalPostProc::BranchCoord { ptr, coord } => todo!(),
+                        LocalPostProc::BranchCoordIfNonZero { ptr, reg, coord } => todo!(),
+                        LocalPostProc::BranchCoordIfZero { ptr, reg, coord } => todo!(),
+                        LocalPostProc::BranchCoordEqual { ptr, reg, coord } => todo!(),
+                        LocalPostProc::BranchCoordNonEqual { ptr, reg, coord } => todo!(),
+                        LocalPostProc::BranchCoordLess { ptr, reg, coord } => todo!(),
+                        LocalPostProc::BranchCoordGreater { ptr, reg, coord } => todo!(),
+                        LocalPostProc::BranchCoordLessEqual { ptr, reg, coord } => todo!(),
+                        LocalPostProc::BranchCoordGreaterEqual { ptr, reg, coord } => todo!(),
+                        LocalPostProc::LoadLocalStatic64 { ptr, dst, coord } => todo!(),
+                        LocalPostProc::LoadLocalStaticAddress { ptr, dst, coord } => todo!(),
+                    }
+                }
+                out.seek(SeekFrom::Start(HEADER_LENGTH + func_end_ptr))?;
             }
             modules.insert(*module_index, ModuleTable { statics, funcs });
         }
@@ -401,6 +522,26 @@ pub struct BinaryFunc {
 pub struct ModuleTable {
     pub statics: HashMap<usize, usize>,
     pub funcs: HashMap<usize, usize>,
+}
+
+pub enum LocalPostProc {
+    BranchCoord { ptr: usize, coord: usize },
+    BranchCoordIfNonZero { ptr: usize, reg: Reg, coord: usize },
+    BranchCoordIfZero { ptr: usize, reg: Reg, coord: usize },
+    BranchCoordEqual { ptr: usize, reg: Reg, coord: usize },
+    BranchCoordNonEqual { ptr: usize, reg: Reg, coord: usize },
+    BranchCoordLess { ptr: usize, reg: Reg, coord: usize },
+    BranchCoordGreater { ptr: usize, reg: Reg, coord: usize },
+    BranchCoordLessEqual { ptr: usize, reg: Reg, coord: usize },
+    BranchCoordGreaterEqual { ptr: usize, reg: Reg, coord: usize },
+    LoadLocalStatic64 { ptr: usize, dst: Reg, coord: usize },
+    LoadLocalStaticAddress { ptr: usize, dst: Reg, coord: usize },
+}
+
+pub enum GlobalPostProc {
+    Call { ptr: usize, coord: Coord },
+    LoadStatic64 { ptr: usize, dst: Reg, coord: Coord },
+    LoadStaticAddress { ptr: usize, dst: Reg, coord: Coord },
 }
 
 pub fn emit(ptr: &mut usize, out: &mut (impl Write + Seek), insn: u32) -> Result<()> {
