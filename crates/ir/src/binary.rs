@@ -34,6 +34,7 @@ impl Binary {
         out.write_u32::<LittleEndian>(EXECUTABLE)?;
         out.write_u64::<LittleEndian>(0)?;
         let mut ptr = 0usize;
+        let mut modules = HashMap::with_capacity(self.modules.len());
         for (module_index, module) in &self.modules {
             let mut statics = HashMap::with_capacity(module.statics.len());
             let mut funcs = HashMap::with_capacity(module.funcs.len());
@@ -331,6 +332,7 @@ impl Binary {
                     }
                 }
             }
+            modules.insert(*module_index, ModuleTable { statics, funcs });
         }
         Ok(())
     }
@@ -394,6 +396,11 @@ impl BinaryStatic {
 pub struct BinaryFunc {
     pub locals: Vec<BinaryStatic>,
     pub ops: Vec<LowOp>,
+}
+
+pub struct ModuleTable {
+    pub statics: HashMap<usize, usize>,
+    pub funcs: HashMap<usize, usize>,
 }
 
 pub fn emit(ptr: &mut usize, out: &mut (impl Write + Seek), insn: u32) -> Result<()> {

@@ -1,7 +1,7 @@
 # Leviathan
 
 > **Warning**  
-> This branch is highly work-in-progress and in no means stable
+> This branch is highly work-in-progress and by no means stable
 
 Leviathan is a Lisp-inspired programming language.
 It is a toy project and not meant for serious use cases.
