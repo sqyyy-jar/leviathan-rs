@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+urban-common = { git = "https://github.com/sqyyy-jar/urban-engine.git" }
+byteorder = "1.4.3"

@@ -297,6 +297,10 @@ dependencies = [
 [[package]]
 name = "leviathan-ir"
 version = "0.1.0"
+dependencies = [
+ "byteorder",
+ "urban-common",
+]
 
 [[package]]
 name = "libc"

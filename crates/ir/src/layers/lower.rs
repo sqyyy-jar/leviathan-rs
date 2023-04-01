@@ -1,6 +1,9 @@
-use super::upper::Cond;
+use crate::binary::BinaryStatic;
+
+use super::Coord;
 
 pub struct LowerLayer {
+    pub locals: Vec<BinaryStatic>,
     pub ops: Vec<LowOp>,
 }
 
@@ -15,22 +18,33 @@ impl Reg {
     }
 
     #[inline(always)]
-    pub const fn value(&self) -> u8 {
-        self.value
+    pub const fn value(&self) -> u32 {
+        self.value as u32
     }
 }
 
 pub enum LowOp {
     PutCoord { coord: usize },
     BranchCoord { coord: usize },
-    BranchCoordCond { coord: usize, cond: Cond },
-    AddImmediate { dst: Reg, src: Reg, immediate: u32 },
-    SubImmediate { dst: Reg, src: Reg, immediate: u32 },
-    MulImmediate { dst: Reg, src: Reg, immediate: u32 },
-    DivImmediate { dst: Reg, src: Reg, immediate: u32 },
-    RemImmediate { dst: Reg, src: Reg, immediate: u32 },
-    DivSignedImmediate { dst: Reg, src: Reg, immediate: i32 },
-    RemSignedImmediate { dst: Reg, src: Reg, immediate: i32 },
+    BranchCoordIfNonZero { reg: Reg, coord: usize },
+    BranchCoordIfZero { reg: Reg, coord: usize },
+    BranchCoordEqual { reg: Reg, coord: usize },
+    BranchCoordNonEqual { reg: Reg, coord: usize },
+    BranchCoordLess { reg: Reg, coord: usize },
+    BranchCoordGreater { reg: Reg, coord: usize },
+    BranchCoordLessEqual { reg: Reg, coord: usize },
+    BranchCoordGreaterEqual { reg: Reg, coord: usize },
+    LoadStatic64 { dst: Reg, coord: Coord },
+    LoadLocalStatic64 { dst: Reg, coord: usize },
+    LoadStaticAddress { dst: Reg, coord: Coord },
+    LoadLocalStaticAddress { dst: Reg, coord: usize },
+    AddImmediate { dst: Reg, lhs: Reg, rhs: u32 },
+    SubImmediate { dst: Reg, lhs: Reg, rhs: u32 },
+    MulImmediate { dst: Reg, lhs: Reg, rhs: u32 },
+    DivImmediate { dst: Reg, lhs: Reg, rhs: u32 },
+    RemImmediate { dst: Reg, lhs: Reg, rhs: u32 },
+    DivSignedImmediate { dst: Reg, lhs: Reg, rhs: i32 },
+    RemSignedImmediate { dst: Reg, lhs: Reg, rhs: i32 },
     MoveImmediate { dst: Reg, immediate: u32 },
     MoveSignedImmediate { dst: Reg, immediate: i32 },
     ShiftLeftImmediate { dst: Reg, lhs: Reg, rhs: u32 },
