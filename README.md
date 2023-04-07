@@ -44,3 +44,25 @@ The build configuration looks like this:
 name = "my-package"
 version = "1.0.0"
 ```
+
+### Building
+
+To build the project run
+
+```bash
+lvt build
+```
+
+in the project directory.
+
+The binary will be placed in `out/project-name.bin` with `project-name` getting replaced with the name in your build configuration.
+
+### Running
+
+To run the compiled binary run
+
+```bash
+urban run path/to/binary
+```
+
+with the path to the binary.
