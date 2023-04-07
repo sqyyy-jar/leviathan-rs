@@ -20,5 +20,4 @@ Every module contains the following:
 
 # To do
 
-* Implement concept
 * Write about tokenizer and parser
