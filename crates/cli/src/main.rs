@@ -1,6 +1,10 @@
+pub mod disasm;
 pub mod project;
 
-use clap::{command, crate_version, Command};
+use std::path::PathBuf;
+
+use clap::{arg, command, crate_version, value_parser, Command};
+use disasm::disasm;
 use project::build;
 
 const BUILD_DATE: &str = env!("BUILD_DATE");
@@ -12,6 +16,14 @@ fn main() {
         .subcommands([
             command!("version").alias("v").about("Shows the version"),
             command!("build").alias("b").about("Build a project"),
+            command!("disasm")
+                .alias("d")
+                .about("Disassemble a binary")
+                .arg(
+                    arg!(<FILE>)
+                        .value_parser(value_parser!(PathBuf))
+                        .required(true),
+                ),
         ]);
     let matches = cmd.get_matches_mut();
     match matches.subcommand() {
@@ -20,6 +32,9 @@ fn main() {
         }
         Some(("build", matches)) => {
             build(matches).unwrap_or_else(|err| err.format(&mut cmd).exit())
+        }
+        Some(("disasm", matches)) => {
+            disasm(matches).unwrap_or_else(|err| err.format(&mut cmd).exit())
         }
         _ => unreachable!("clap should ensure we don't get here"),
     };

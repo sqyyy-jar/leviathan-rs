@@ -7,13 +7,14 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use urban_common::{
     binary::EXECUTABLE,
     opcodes::{
-        L0_BRANCH, L0_BRANCH_EQ, L0_BRANCH_GE, L0_BRANCH_GT, L0_BRANCH_L, L0_BRANCH_LE,
+        L0_ADD, L0_BRANCH, L0_BRANCH_EQ, L0_BRANCH_GE, L0_BRANCH_GT, L0_BRANCH_L, L0_BRANCH_LE,
         L0_BRANCH_LT, L0_BRANCH_NE, L0_BRANCH_NZ, L0_BRANCH_ZR, L0_DIV, L0_DIVS, L0_LDR, L0_LEA,
-        L0_MOVS, L0_MUL, L0_REM, L0_REMS, L0_SUB, L1_INT, L1_LDR, L1_LDRB, L1_LDRH, L1_LDRW,
-        L1_NCALL, L1_SHL, L1_SHR, L1_SHRS, L1_STR, L1_STRB, L1_STRH, L1_STRW, L1_VCALL, L2_ADD,
-        L2_ADDF, L2_AND, L2_CMP, L2_CMPF, L2_CMPS, L2_DIV, L2_DIVF, L2_DIVS, L2_MUL, L2_MULF,
-        L2_OR, L2_REM, L2_REMF, L2_REMS, L2_SHL, L2_SHR, L2_SHRS, L2_SUB, L2_SUBF, L2_XOR, L3_FTI,
-        L3_ITF, L3_MOV, L3_NOT, L4_LDBO, L4_LDPC, L4_NCALL, L4_VCALL, L5_HALT, L5_NOP, L5_RET,
+        L0_MOV, L0_MOVS, L0_MUL, L0_REM, L0_REMS, L0_SUB, L1_INT, L1_LDR, L1_LDRB, L1_LDRH,
+        L1_LDRW, L1_NCALL, L1_SHL, L1_SHR, L1_SHRS, L1_STR, L1_STRB, L1_STRH, L1_STRW, L1_VCALL,
+        L2_ADD, L2_ADDF, L2_AND, L2_CMP, L2_CMPF, L2_CMPS, L2_DIV, L2_DIVF, L2_DIVS, L2_MUL,
+        L2_MULF, L2_OR, L2_REM, L2_REMF, L2_REMS, L2_SHL, L2_SHR, L2_SHRS, L2_SUB, L2_SUBF, L2_XOR,
+        L3_FTI, L3_ITF, L3_MOV, L3_NOT, L4_LDBO, L4_LDPC, L4_NCALL, L4_VCALL, L5_HALT, L5_NOP,
+        L5_RET,
     },
 };
 
@@ -175,7 +176,7 @@ impl Binary {
                         } => emit(
                             &mut ptr,
                             out,
-                            L0_SUB | dst.value() | src.value() << 5 | immediate.cut(17) << 10,
+                            L0_ADD | dst.value() | src.value() << 5 | immediate.cut(17) << 10,
                         )?,
                         LowOp::SubImmediate {
                             dst,
@@ -231,11 +232,9 @@ impl Binary {
                             out,
                             L0_REMS | dst.value() | src.value() << 5 | immediate.cut(17) << 10,
                         )?,
-                        LowOp::MoveImmediate { dst, immediate } => emit(
-                            &mut ptr,
-                            out,
-                            L0_MOVS | dst.value() | immediate.cut(22) << 5,
-                        )?,
+                        LowOp::MoveImmediate { dst, immediate } => {
+                            emit(&mut ptr, out, L0_MOV | dst.value() | immediate.cut(22) << 5)?
+                        }
                         LowOp::MoveSignedImmediate { dst, immediate } => emit(
                             &mut ptr,
                             out,

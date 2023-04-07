@@ -337,11 +337,13 @@ dependencies = [
 name = "leviathan-cli"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
  "chrono",
  "clap",
  "leviathan-compiler",
  "serde",
  "toml",
+ "urban-common",
 ]
 
 [[package]]

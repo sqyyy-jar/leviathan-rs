@@ -37,7 +37,7 @@ macro_rules! insn {
         (&[$($comp_expr),*],
         |module: &mut Module, bin_func: &mut LowerLayer, mut nodes: Vec<Node>| {
             $(
-                let $comp_name = parse_comp!($component, module, nodes.remove(0));
+                let $comp_name = parse_comp!($component, module, nodes.remove(1));
             )*
             bin_func.ops.push($low_op);
         })

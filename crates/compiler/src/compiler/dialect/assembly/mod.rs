@@ -188,7 +188,6 @@ impl Dialect for AssemblyLanguage {
         let module = &mut task.modules[module_index];
         let statics_len = self.statics.len();
         let funcs_len = self.labels.len();
-        let mut imports = Vec::with_capacity(self.unresolved_imports.len());
         for import in self.unresolved_imports.drain(..) {
             let Node::Ident { span } = import.node else {unreachable!()};
             let name = &module.src[span.clone()];
@@ -206,14 +205,15 @@ impl Dialect for AssemblyLanguage {
                     span,
                 });
             }
-            imports.push(*include);
+            self.imports.push(*include);
         }
         for static_index in 0..statics_len {
             let static_ = compile_static(self, task, module_index, static_index)?;
             binary_mod.statics.insert(static_index, static_);
         }
         for func_index in 0..funcs_len {
-            compile_label(self, task, module_index, func_index, &mut binary_mod)?;
+            let func = compile_label(self, task, module_index, func_index, &mut binary_mod)?;
+            binary_mod.funcs.insert(func_index, func);
         }
         Ok(binary_mod)
     }
@@ -636,7 +636,7 @@ fn compile_label_node(
                 });
             }
             let reg = Reg::new(reg as u8);
-            let pos = (depth << 32) | binary_func.ops.len();
+            let pos = binary_func.alloc_coord();
             match cond {
                 "=" => binary_func
                     .ops
@@ -745,8 +745,8 @@ fn compile_label_node(
                 });
             }
             let reg = Reg::new(reg as u8);
-            let pos = (depth << 32) | binary_func.ops.len();
-            let cond_pos = (depth << 32) | binary_func.ops.len() | 1 << 63;
+            let pos = binary_func.alloc_coord();
+            let cond_pos = binary_func.alloc_coord();
             binary_func.ops.push(LowOp::BranchCoord { coord: cond_pos });
             binary_func.ops.push(LowOp::PutCoord { coord: pos });
             let insn = match cond {
@@ -842,7 +842,7 @@ fn compile_label_node(
                 });
             }
             let reg = Reg::new(reg as u8);
-            let pos = (depth << 32) | binary_func.ops.len();
+            let pos = binary_func.alloc_coord();
             binary_func.ops.push(LowOp::PutCoord { coord: pos });
             let insn = match cond {
                 "=" => LowOp::BranchCoordEqual { coord: pos, reg },
