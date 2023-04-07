@@ -47,6 +47,7 @@ impl Token {
 
 #[derive(Debug)]
 pub enum Node {
+    Empty,
     Ident {
         span: Span,
     },
@@ -82,7 +83,14 @@ impl Node {
             | Node::Float { span, .. }
             | Node::String { span, .. }
             | Node::Node { span, .. } => span.clone(),
+            _ => unreachable!()
         }
+    }
+}
+
+impl Default for Node {
+    fn default() -> Self {
+        Self::Empty
     }
 }
 

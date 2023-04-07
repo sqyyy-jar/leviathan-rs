@@ -2,12 +2,13 @@ pub mod keywords;
 
 use std::{collections::HashMap, mem};
 
+use leviathan_ir::binary::{BinaryModule, BinaryStatic};
 use phf::{phf_map, Map};
 
 use crate::{
     compiler::{
         error::{Error, Result},
-        intermediary::{Insn, IntermediaryStaticValue},
+        intermediary::Insn,
         CompileTask, Dialect, Func, FuncData, Module, Static, StaticData, UncollectedModule,
     },
     parser::{BracketType, Node},
@@ -104,7 +105,12 @@ impl Dialect for CodeLanguage {
         Ok(())
     }
 
-    fn compile_module(&mut self, task: &mut CompileTask, module_index: usize) -> Result<()> {
+    fn compile_module(
+        &mut self,
+        task: &mut CompileTask,
+        module_index: usize,
+    ) -> Result<BinaryModule> {
+        let mut binary_mod = BinaryModule::default();
         let module = &mut task.modules[module_index];
         let imports = mem::replace(&mut self.imports, Vec::with_capacity(0));
         let mut new_imports = Vec::with_capacity(imports.len());
@@ -121,16 +127,9 @@ impl Dialect for CodeLanguage {
         }
         for i in 0..self.statics.len() {
             let static_ = &mut self.statics[i];
-            let StaticData::Collected { node } = mem::replace(
-                &mut static_.data,
-                StaticData::Intermediary {
-                    value: IntermediaryStaticValue::Int(0),
-                },
-            ) else {
-                unreachable!()
-            };
+            let StaticData { node } = mem::take(&mut static_.data);
             let value = compile_static(module, node)?;
-            self.statics[i].data = StaticData::Intermediary { value };
+            binary_mod.statics.insert(i, value);
         }
         for i in 0..self.funcs.len() {
             let Func { data, .. } = &mut self.funcs[i];
@@ -143,7 +142,7 @@ impl Dialect for CodeLanguage {
             let ir = compile_func_body(task, module_index, node)?;
             self.funcs[i].data = FuncData::Intermediary { ir };
         }
-        Ok(())
+        Ok(binary_mod)
     }
 
     fn lookup_callable(&self, name: &str) -> Option<usize> {
@@ -157,22 +156,23 @@ impl Dialect for CodeLanguage {
     }
 }
 
-fn compile_static(module: &mut Module, node: Node) -> Result<IntermediaryStaticValue> {
+fn compile_static(module: &mut Module, node: Node) -> Result<BinaryStatic> {
     match node {
         Node::Ident { span } => Err(Error::UnexpectedToken {
             file: module.take_file(),
             src: module.take_src(),
             span,
         }),
-        Node::Int { value, .. } => Ok(IntermediaryStaticValue::Int(value)),
-        Node::UInt { value, .. } => Ok(IntermediaryStaticValue::UInt(value)),
-        Node::Float { value, .. } => Ok(IntermediaryStaticValue::Float(value)),
-        Node::String { value, .. } => Ok(IntermediaryStaticValue::String(value)),
+        Node::Int { value, .. } => Ok(BinaryStatic::Int(value)),
+        Node::UInt { value, .. } => Ok(BinaryStatic::UInt(value)),
+        Node::Float { value, .. } => Ok(BinaryStatic::Float(value)),
+        Node::String { value, .. } => Ok(BinaryStatic::String(value)),
         Node::Node {
             span: _,
             type_: _,
             sub_nodes: _,
         } => todo!(),
+        _ => unreachable!(),
     }
 }
 

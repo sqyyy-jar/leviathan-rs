@@ -95,7 +95,7 @@ pub fn collect_static(
         }
         let value = nodes.next().unwrap();
         dialect.statics.push(Static {
-            data: StaticData::Collected { node: value },
+            data: StaticData { node: value },
             used: false,
         });
         dialect

@@ -1,11 +1,11 @@
 use std::mem;
 
+use leviathan_ir::binary::BinaryStatic;
 use phf::{phf_map, Map};
 
 use crate::{
     compiler::{
         error::{Error, Result},
-        intermediary::IntermediaryStaticValue,
         CompileTask,
     },
     parser::Node,
@@ -17,7 +17,7 @@ pub type StaticFunc<'a> = fn(
     module_index: usize,
     span: Span,
     nodes: Vec<Node>,
-) -> Result<IntermediaryStaticValue>;
+) -> Result<BinaryStatic>;
 
 pub const STATIC_FUNCS: Map<&'static str, StaticFunc> = phf_map! {
     "buffer" => static_buffer,
@@ -28,7 +28,7 @@ fn static_buffer(
     module_index: usize,
     span: Span,
     mut nodes: Vec<Node>,
-) -> Result<IntermediaryStaticValue> {
+) -> Result<BinaryStatic> {
     let module = &mut task.modules[module_index];
     if nodes.len() != 2 {
         return Err(Error::InvalidCallSignature {
@@ -68,5 +68,5 @@ fn static_buffer(
             })
         }
     };
-    Ok(IntermediaryStaticValue::Buffer { size })
+    Ok(BinaryStatic::FilledBuffer { size, fill: 0 })
 }

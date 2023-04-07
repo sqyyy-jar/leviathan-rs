@@ -1,13 +1,39 @@
-use crate::binary::BinaryStatic;
+use crate::binary::{BinaryFunc, BinaryStatic};
 
 use super::Coord;
 
 pub struct LowerLayer {
+    coord_index: usize,
     pub locals: Vec<BinaryStatic>,
     pub ops: Vec<LowOp>,
 }
 
-#[derive(Clone, Copy)]
+impl LowerLayer {
+    pub fn alloc_coord(&mut self) -> usize {
+        let coord = self.coord_index;
+        self.coord_index += 1;
+        coord
+    }
+
+    pub fn to_func(self) -> BinaryFunc {
+        BinaryFunc {
+            locals: self.locals,
+            ops: self.ops,
+        }
+    }
+}
+
+impl Default for LowerLayer {
+    fn default() -> Self {
+        Self {
+            coord_index: 0,
+            locals: Vec::with_capacity(0),
+            ops: Vec::with_capacity(0),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct Reg {
     value: u8,
 }
@@ -24,6 +50,7 @@ impl Reg {
     }
 }
 
+#[derive(Debug)]
 pub enum LowOp {
     PutCoord { coord: usize },
     BranchCoord { coord: usize },
@@ -92,6 +119,8 @@ pub enum LowOp {
     VirtualCall { id: Reg },
     LoadBaseOffset { dst: Reg },
     LoadProgramCounter { dst: Reg },
+    Nop,
     Halt,
     Return,
+    InvalidInstruction,
 }

@@ -1,3 +1,5 @@
+/// TODO: return result
+/// error if not in range
 pub trait MaxBitsU32 {
     fn cut(&self, bits: usize) -> u32;
 }

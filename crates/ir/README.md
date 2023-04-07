@@ -50,3 +50,5 @@ Only extra feature is branching to compile-time dynamic code-coordinates (extern
 * Add remaining required layers
 * `Destructure` $\rightarrow$ ... $\rightarrow$ `Lower`
 * Binary assembling
+  * Support higher offset ranges
+* Fix assembler dialect

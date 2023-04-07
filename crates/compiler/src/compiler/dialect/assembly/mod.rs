@@ -4,13 +4,18 @@ pub mod static_funcs;
 
 use std::{collections::HashMap, mem};
 
-use urban_common::opcodes::{L0_MOV, L0_MOVS};
+use leviathan_ir::{
+    binary::{BinaryFunc, BinaryModule, BinaryStatic},
+    layers::{
+        lower::{LowOp, LowerLayer, Reg},
+        Coord,
+    },
+};
 
 use crate::{
     compiler::{
         dialect::assembly::{insns::INSN_MACROS, macros::MACROS},
         error::{Error, Result},
-        intermediary::{Insn, IntermediaryStaticValue, Reg},
         CompileTask, Dialect, Func, FuncData, Static, StaticData, Type, UncollectedModule,
     },
     parser::{BracketType, Node},
@@ -50,15 +55,15 @@ impl Dialect for AssemblyLanguage {
             };
             if sub_nodes.is_empty() {
                 return Err(Error::EmptyNode {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             }
             let Node::Ident { span: keyword_span } = &sub_nodes[0] else {
                 return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: sub_nodes[0].span(),
                 });
             };
@@ -67,15 +72,15 @@ impl Dialect for AssemblyLanguage {
                 "use" => {
                     if sub_nodes.len() != 2 {
                         return Err(Error::InvalidStatement {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
+                            file: module.take_file(),
+                            src: module.take_src(),
                             span,
                         });
                     }
                     let Node::Ident { .. } = &sub_nodes[1] else {
                         return Err(Error::UnexpectedToken {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
+                            file: module.take_file(),
+                            src: module.take_src(),
                             span: sub_nodes[1].span(),
                         });
                     };
@@ -86,28 +91,28 @@ impl Dialect for AssemblyLanguage {
                 "static" => {
                     if sub_nodes.len() != 3 {
                         return Err(Error::InvalidStatement {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
+                            file: module.take_file(),
+                            src: module.take_src(),
                             span,
                         });
                     }
                     let Node::Ident { span: name_span } = &sub_nodes[1] else {
                         return Err(Error::UnexpectedToken {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
+                            file: module.take_file(),
+                            src: module.take_src(),
                             span: sub_nodes[1].span(),
                         });
                     };
                     let name = &module.src[name_span.clone()];
                     if self.static_indices.contains_key(name) {
                         return Err(Error::DuplicateName {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
+                            file: module.take_file(),
+                            src: module.take_src(),
                             span: name_span.clone(),
                         });
                     }
                     self.statics.push(Static {
-                        data: StaticData::Collected {
+                        data: StaticData {
                             node: sub_nodes.pop().unwrap(),
                         },
                         used: false,
@@ -119,23 +124,23 @@ impl Dialect for AssemblyLanguage {
                     let public = keyword.starts_with('+');
                     if sub_nodes.len() != 3 {
                         return Err(Error::InvalidStatement {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
+                            file: module.take_file(),
+                            src: module.take_src(),
                             span,
                         });
                     }
                     let Node::Ident { span: name_span } = &sub_nodes[1] else {
                         return Err(Error::UnexpectedToken {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
+                            file: module.take_file(),
+                            src: module.take_src(),
                             span: sub_nodes[1].span(),
                         });
                     };
                     let name = &module.src[name_span.clone()];
                     if self.label_indices.contains_key(name) {
                         return Err(Error::DuplicateName {
-                            file: mem::take(&mut module.file),
-                            src: mem::take(&mut module.src),
+                            file: module.take_file(),
+                            src: module.take_src(),
                             span: name_span.clone(),
                         });
                     }
@@ -151,13 +156,16 @@ impl Dialect for AssemblyLanguage {
                     self.label_indices
                         .insert(name.to_string(), self.labels.len() - 1);
                     if main && name == "main" {
-                        task.main = Some((module_index, self.labels.len() - 1));
+                        task.main = Some(Coord {
+                            module: module_index,
+                            element: self.labels.len() - 1,
+                        });
                     }
                 }
                 _ => {
                     return Err(Error::InvalidKeyword {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
+                        file: module.take_file(),
+                        src: module.take_src(),
                         span: keyword_span.clone(),
                     })
                 }
@@ -165,13 +173,18 @@ impl Dialect for AssemblyLanguage {
         }
         if main && task.main.is_none() {
             return Err(Error::NoMainFound {
-                file: mem::take(&mut module.file),
+                file: module.take_file(),
             });
         }
         Ok(())
     }
 
-    fn compile_module(&mut self, task: &mut CompileTask, module_index: usize) -> Result<()> {
+    fn compile_module(
+        &mut self,
+        task: &mut CompileTask,
+        module_index: usize,
+    ) -> Result<BinaryModule> {
+        let mut binary_mod = BinaryModule::default();
         let module = &mut task.modules[module_index];
         let statics_len = self.statics.len();
         let funcs_len = self.labels.len();
@@ -181,27 +194,28 @@ impl Dialect for AssemblyLanguage {
             let name = &module.src[span.clone()];
             let Some(include) = task.module_indices.get(name) else {
                 return Err(Error::UnknownModule {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             };
             if *include == module_index {
                 return Err(Error::SelfImport {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             }
             imports.push(*include);
         }
         for static_index in 0..statics_len {
-            compile_static(self, task, module_index, static_index)?;
+            let static_ = compile_static(self, task, module_index, static_index)?;
+            binary_mod.statics.insert(static_index, static_);
         }
         for func_index in 0..funcs_len {
-            compile_label(self, task, module_index, func_index)?;
+            compile_label(self, task, module_index, func_index, &mut binary_mod)?;
         }
-        Ok(())
+        Ok(binary_mod)
     }
 
     fn lookup_callable(&self, name: &str) -> Option<usize> {
@@ -238,47 +252,20 @@ fn compile_static(
     task: &mut CompileTask,
     module_index: usize,
     static_index: usize,
-) -> Result<()> {
+) -> Result<BinaryStatic> {
     let module = &mut task.modules[module_index];
     let Static { data, used: _ } = &mut dialect.statics[static_index];
-    let StaticData::Collected { node } = mem::replace(
-        data,
-        StaticData::Intermediary {
-            value: IntermediaryStaticValue::Int(0),
-        },
-    ) else {
-        unreachable!()
-    };
+    let StaticData { node } = mem::take(data);
     match node {
         Node::Ident { span } => Err(Error::UnexpectedToken {
-            file: mem::take(&mut module.file),
-            src: mem::take(&mut module.src),
+            file: module.take_file(),
+            src: module.take_src(),
             span,
         }),
-        Node::Int { value, .. } => {
-            *data = StaticData::Intermediary {
-                value: IntermediaryStaticValue::Int(value),
-            };
-            Ok(())
-        }
-        Node::UInt { value, .. } => {
-            *data = StaticData::Intermediary {
-                value: IntermediaryStaticValue::UInt(value),
-            };
-            Ok(())
-        }
-        Node::Float { value, .. } => {
-            *data = StaticData::Intermediary {
-                value: IntermediaryStaticValue::Float(value),
-            };
-            Ok(())
-        }
-        Node::String { value, .. } => {
-            *data = StaticData::Intermediary {
-                value: IntermediaryStaticValue::String(value),
-            };
-            Ok(())
-        }
+        Node::Int { value, .. } => Ok(BinaryStatic::Int(value)),
+        Node::UInt { value, .. } => Ok(BinaryStatic::UInt(value)),
+        Node::Float { value, .. } => Ok(BinaryStatic::Float(value)),
+        Node::String { value, .. } => Ok(BinaryStatic::String(value)),
         Node::Node {
             span,
             type_,
@@ -286,37 +273,37 @@ fn compile_static(
         } => {
             if type_ != BracketType::Round {
                 return Err(Error::InvalidBracketType {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             }
             if sub_nodes.is_empty() {
                 return Err(Error::EmptyNode {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             }
             let Node::Ident { span } = &sub_nodes[0] else {
                 return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span
                 });
             };
             let keyword = &module.src[span.clone()];
             let Some(static_func) = STATIC_FUNCS.get(keyword) else {
                 return Err(Error::UnknownStaticFunc {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: span.clone(),
                 });
             };
             let value = (*static_func)(task, module_index, span.clone(), sub_nodes)?;
-            dialect.statics[static_index].data = StaticData::Intermediary { value };
-            Ok(())
+            Ok(value)
         }
+        _ => unreachable!(),
     }
 }
 
@@ -325,7 +312,9 @@ fn compile_label(
     task: &mut CompileTask,
     module_index: usize,
     func_index: usize,
-) -> Result<()> {
+    binary_mod: &mut BinaryModule,
+) -> Result<BinaryFunc> {
+    let mut binary_func = LowerLayer::default();
     let module = &mut task.modules[module_index];
     let Func {
         public: _,
@@ -342,111 +331,97 @@ fn compile_label(
     ) else {
         unreachable!()
     };
-    let mut ir = Vec::with_capacity(0);
     match node {
         Node::Ident { span } => {
             let name = &module.src[span.clone()];
             let Some(static_index) = dialect.static_indices.get(name) else {
                 return Err(Error::UnknownStaticVariable {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             };
-            let static_ = &mut dialect.statics[*static_index];
-            let StaticData::Intermediary { value } = &static_.data else {unreachable!()};
-            match value {
-                IntermediaryStaticValue::Int(_)
-                | IntermediaryStaticValue::UInt(_)
-                | IntermediaryStaticValue::Float(_) => {
-                    ir.push(Insn::LoadStatic {
-                        dst: Reg::R0,
-                        index: *static_index,
+            let static_ = binary_mod.statics.get_mut(static_index).unwrap();
+            match static_ {
+                BinaryStatic::Int(_) | BinaryStatic::UInt(_) | BinaryStatic::Float(_) => {
+                    binary_func.ops.push(LowOp::LoadStatic64 {
+                        dst: Reg::new(0),
+                        coord: Coord {
+                            module: module_index,
+                            element: *static_index,
+                        },
                     });
                 }
-                IntermediaryStaticValue::String(_) => {
-                    ir.push(Insn::LdStaticAbsAddr {
-                        dst: Reg::R0,
-                        index: *static_index,
-                    });
-                }
-                IntermediaryStaticValue::Buffer { size: _ } => {
-                    ir.push(Insn::LdStaticAbsAddr {
-                        dst: Reg::R0,
-                        index: *static_index,
+                BinaryStatic::String(_) | BinaryStatic::FilledBuffer { .. } => {
+                    binary_func.ops.push(LowOp::LoadStatic64 {
+                        dst: Reg::new(0),
+                        coord: Coord {
+                            module: module_index,
+                            element: *static_index,
+                        },
                     });
                 }
             }
-            ir.push(Insn::Ret);
-            *data = FuncData::Intermediary { ir };
-            Ok(())
+            binary_func.ops.push(LowOp::Return);
+            Ok(binary_func.to_func())
         }
         Node::Int { .. } | Node::UInt { .. } | Node::Float { .. } => {
             match node {
                 Node::Int { value, .. } => {
                     if (-(1 << 22)..((1 << 22) - 1)).contains(&value) {
-                        ir.push(Insn::Raw(L0_MOVS | value as u32 & ((1 << 22) - 1)));
-                    } else {
-                        dialect.statics.push(Static {
-                            data: StaticData::Intermediary {
-                                value: IntermediaryStaticValue::Int(value),
-                            },
-                            used: false,
+                        binary_func.ops.push(LowOp::MoveSignedImmediate {
+                            dst: Reg::new(0),
+                            immediate: value as i32,
                         });
-                        ir.push(Insn::LoadStatic {
-                            dst: Reg::R0,
-                            index: dialect.statics.len() - 1,
+                    } else {
+                        binary_func.locals.push(BinaryStatic::Int(value));
+                        binary_func.ops.push(LowOp::LoadLocalStatic64 {
+                            dst: Reg::new(0),
+                            coord: binary_func.locals.len() - 1,
                         });
                     }
                 }
                 Node::UInt { value, .. } => {
                     if value < (1 << 22) {
-                        ir.push(Insn::Raw(L0_MOV | value as u32 & ((1 << 22) - 1)))
-                    } else {
-                        dialect.statics.push(Static {
-                            data: StaticData::Intermediary {
-                                value: IntermediaryStaticValue::UInt(value),
-                            },
-                            used: false,
+                        binary_func.ops.push(LowOp::MoveImmediate {
+                            dst: Reg::new(0),
+                            immediate: value as u32,
                         });
-                        ir.push(Insn::LoadStatic {
-                            dst: Reg::R0,
-                            index: dialect.statics.len() - 1,
+                    } else {
+                        binary_func.locals.push(BinaryStatic::UInt(value));
+                        binary_func.ops.push(LowOp::LoadLocalStatic64 {
+                            dst: Reg::new(0),
+                            coord: binary_func.locals.len() - 1,
                         });
                     }
                 }
                 Node::Float { value, .. } => {
-                    dialect.statics.push(Static {
-                        data: StaticData::Intermediary {
-                            value: IntermediaryStaticValue::Float(value),
-                        },
-                        used: false,
-                    });
-                    ir.push(Insn::LoadStatic {
-                        dst: Reg::R0,
-                        index: dialect.statics.len() - 1,
-                    });
+                    if value == 0.0 {
+                        binary_func.ops.push(LowOp::MoveImmediate {
+                            dst: Reg::new(0),
+                            immediate: 0,
+                        });
+                    } else {
+                        binary_func.locals.push(BinaryStatic::Float(value));
+                        binary_func.ops.push(LowOp::LoadLocalStatic64 {
+                            dst: Reg::new(0),
+                            coord: binary_func.locals.len() - 1,
+                        });
+                    }
                 }
                 _ => unreachable!(),
             }
-            ir.push(Insn::Ret);
-            *data = FuncData::Intermediary { ir };
-            Ok(())
+            binary_func.ops.push(LowOp::Return);
+            Ok(binary_func.to_func())
         }
         Node::String { value, .. } => {
-            dialect.statics.push(Static {
-                data: StaticData::Intermediary {
-                    value: IntermediaryStaticValue::String(value),
-                },
-                used: true,
+            binary_func.locals.push(BinaryStatic::String(value));
+            binary_func.ops.push(LowOp::LoadLocalStaticAddress {
+                dst: Reg::new(0),
+                coord: binary_func.locals.len() - 1,
             });
-            ir.push(Insn::LdStaticAbsAddr {
-                dst: Reg::R0,
-                index: dialect.statics.len() - 1,
-            });
-            ir.push(Insn::Ret);
-            *data = FuncData::Intermediary { ir };
-            Ok(())
+            binary_func.ops.push(LowOp::Return);
+            Ok(binary_func.to_func())
         }
         Node::Node {
             span,
@@ -455,15 +430,23 @@ fn compile_label(
         } => {
             if type_ != BracketType::Round {
                 return Err(Error::InvalidBracketType {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             }
-            compile_label_node(dialect, task, module_index, &mut ir, sub_nodes, span, 0)?;
-            dialect.labels[func_index].data = FuncData::Intermediary { ir };
-            Ok(())
+            compile_label_node(
+                dialect,
+                task,
+                module_index,
+                &mut binary_func,
+                sub_nodes,
+                span,
+                0,
+            )?;
+            Ok(binary_func.to_func())
         }
+        _ => unreachable!(),
     }
 }
 
@@ -471,7 +454,7 @@ fn compile_label_node(
     dialect: &mut AssemblyLanguage,
     task: &mut CompileTask,
     module_index: usize,
-    ir: &mut Vec<Insn>,
+    binary_func: &mut LowerLayer,
     mut sub_nodes: Vec<Node>,
     span: Span,
     depth: usize,
@@ -479,14 +462,14 @@ fn compile_label_node(
     let mut module = &mut task.modules[module_index];
     if sub_nodes.is_empty() {
         if depth == 0 {
-            ir.push(Insn::Ret);
+            binary_func.ops.push(LowOp::Return);
         }
         return Ok(());
     }
     let Node::Ident { span: name_span } = &sub_nodes[0] else {
         return Err(Error::UnexpectedToken {
-            file: mem::take(&mut module.file),
-            src: mem::take(&mut module.src),
+            file: module.take_file(),
+            src: module.take_src(),
             span: sub_nodes[0].span(),
         });
     };
@@ -500,8 +483,8 @@ fn compile_label_node(
                     Node::Ident { span } => {
                         if sub_nodes.peek().is_some() {
                             return Err(Error::UnexpectedToken {
-                                file: mem::take(&mut module.file),
-                                src: mem::take(&mut module.src),
+                                file: module.take_file(),
+                                src: module.take_src(),
                                 span,
                             });
                         }
@@ -512,55 +495,53 @@ fn compile_label_node(
                     | node @ Node::Float { .. } => {
                         if sub_nodes.peek().is_some() {
                             return Err(Error::UnexpectedToken {
-                                file: mem::take(&mut module.file),
-                                src: mem::take(&mut module.src),
+                                file: module.take_file(),
+                                src: module.take_src(),
                                 span: node.span(),
                             });
                         }
                         match node {
                             Node::Int { value, .. } => {
                                 if (-(1 << 22)..((1 << 22) - 1)).contains(&value) {
-                                    ir.push(Insn::Raw(L0_MOVS | value as u32 & ((1 << 22) - 1)));
-                                } else {
-                                    dialect.statics.push(Static {
-                                        data: StaticData::Intermediary {
-                                            value: IntermediaryStaticValue::Int(value),
-                                        },
-                                        used: false,
+                                    binary_func.ops.push(LowOp::MoveSignedImmediate {
+                                        dst: Reg::new(0),
+                                        immediate: value as i32,
                                     });
-                                    ir.push(Insn::LoadStatic {
-                                        dst: Reg::R0,
-                                        index: dialect.statics.len() - 1,
+                                } else {
+                                    binary_func.locals.push(BinaryStatic::Int(value));
+                                    binary_func.ops.push(LowOp::LoadLocalStatic64 {
+                                        dst: Reg::new(0),
+                                        coord: binary_func.locals.len() - 1,
                                     });
                                 }
                             }
                             Node::UInt { value, .. } => {
                                 if value < (1 << 22) {
-                                    ir.push(Insn::Raw(L0_MOV | value as u32 & ((1 << 22) - 1)))
-                                } else {
-                                    dialect.statics.push(Static {
-                                        data: StaticData::Intermediary {
-                                            value: IntermediaryStaticValue::UInt(value),
-                                        },
-                                        used: false,
+                                    binary_func.ops.push(LowOp::MoveImmediate {
+                                        dst: Reg::new(0),
+                                        immediate: value as u32,
                                     });
-                                    ir.push(Insn::LoadStatic {
-                                        dst: Reg::R0,
-                                        index: dialect.statics.len() - 1,
+                                } else {
+                                    binary_func.locals.push(BinaryStatic::UInt(value));
+                                    binary_func.ops.push(LowOp::LoadLocalStatic64 {
+                                        dst: Reg::new(0),
+                                        coord: binary_func.locals.len() - 1,
                                     });
                                 }
                             }
                             Node::Float { value, .. } => {
-                                dialect.statics.push(Static {
-                                    data: StaticData::Intermediary {
-                                        value: IntermediaryStaticValue::Float(value),
-                                    },
-                                    used: false,
-                                });
-                                ir.push(Insn::LoadStatic {
-                                    dst: Reg::R0,
-                                    index: dialect.statics.len() - 1,
-                                });
+                                if value == 0.0 {
+                                    binary_func.ops.push(LowOp::MoveImmediate {
+                                        dst: Reg::new(0),
+                                        immediate: 0,
+                                    });
+                                } else {
+                                    binary_func.locals.push(BinaryStatic::Float(value));
+                                    binary_func.ops.push(LowOp::LoadLocalStatic64 {
+                                        dst: Reg::new(0),
+                                        coord: binary_func.locals.len() - 1,
+                                    });
+                                }
                             }
                             _ => unreachable!(),
                         }
@@ -568,20 +549,15 @@ fn compile_label_node(
                     Node::String { span, value } => {
                         if sub_nodes.peek().is_some() {
                             return Err(Error::UnexpectedToken {
-                                file: mem::take(&mut module.file),
-                                src: mem::take(&mut module.src),
+                                file: module.take_file(),
+                                src: module.take_src(),
                                 span,
                             });
                         }
-                        dialect.statics.push(Static {
-                            data: StaticData::Intermediary {
-                                value: IntermediaryStaticValue::String(value),
-                            },
-                            used: true,
-                        });
-                        ir.push(Insn::LdStaticAbsAddr {
-                            dst: Reg::R0,
-                            index: dialect.statics.len() - 1,
+                        binary_func.locals.push(BinaryStatic::String(value));
+                        binary_func.ops.push(LowOp::LoadLocalStaticAddress {
+                            dst: Reg::new(0),
+                            coord: binary_func.locals.len() - 1,
                         });
                     }
                     Node::Node {
@@ -591,8 +567,8 @@ fn compile_label_node(
                     } => {
                         if type_ != BracketType::Round {
                             return Err(Error::InvalidBracketType {
-                                file: mem::take(&mut module.file),
-                                src: mem::take(&mut module.src),
+                                file: module.take_file(),
+                                src: module.take_src(),
                                 span,
                             });
                         }
@@ -600,79 +576,96 @@ fn compile_label_node(
                             dialect,
                             task,
                             module_index,
-                            ir,
+                            binary_func,
                             sub_nodes,
                             span,
                             depth + 1,
                         )?;
                         module = &mut task.modules[module_index];
                     }
+                    _ => unreachable!(),
                 }
             }
             if depth == 0 {
-                ir.push(Insn::Ret);
+                binary_func.ops.push(LowOp::Return);
             }
         }
         "if" => {
             if sub_nodes.len() != 4 {
                 return Err(Error::InvalidStatement {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             }
             let Node::Ident { span: cond_span } = &sub_nodes[1] else {
                 return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: sub_nodes[1].span(),
                 });
             };
             let cond = &module.src[cond_span.clone()];
             let Node::Ident { span: reg_span } = &sub_nodes[2] else {
                 return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: sub_nodes[2].span(),
                 });
             };
             let reg = &module.src[reg_span.clone()];
             if !reg.starts_with('r') && !reg.starts_with('R') {
                 return Err(Error::InvalidRegister {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: reg_span.clone(),
                 });
             }
             let Ok(reg) = reg[1..].parse::<usize>() else {
                 return Err(Error::InvalidRegister {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: reg_span.clone(),
                 });
             };
             if reg > 31 {
                 return Err(Error::InvalidRegister {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: reg_span.clone(),
                 });
             }
-            let reg = reg.into();
-            let pos = (depth << 32) | ir.len();
+            let reg = Reg::new(reg as u8);
+            let pos = (depth << 32) | binary_func.ops.len();
             match cond {
-                "=" => ir.push(Insn::BranchPointIfNeq { pos, reg }),
-                "!=" => ir.push(Insn::BranchPointIfEq { pos, reg }),
-                "<" => ir.push(Insn::BranchPointIfGeq { pos, reg }),
-                ">" => ir.push(Insn::BranchPointIfLeq { pos, reg }),
-                "<=" => ir.push(Insn::BranchPointIfGt { pos, reg }),
-                ">=" => ir.push(Insn::BranchPointIfLt { pos, reg }),
-                "!0" => ir.push(Insn::BranchPointIfZr { pos, reg }),
-                "=0" => ir.push(Insn::BranchPointIfNz { pos, reg }),
+                "=" => binary_func
+                    .ops
+                    .push(LowOp::BranchCoordNonEqual { reg, coord: pos }),
+                "!=" => binary_func
+                    .ops
+                    .push(LowOp::BranchCoordEqual { reg, coord: pos }),
+                "<" => binary_func
+                    .ops
+                    .push(LowOp::BranchCoordGreaterEqual { reg, coord: pos }),
+                ">" => binary_func
+                    .ops
+                    .push(LowOp::BranchCoordLessEqual { reg, coord: pos }),
+                "<=" => binary_func
+                    .ops
+                    .push(LowOp::BranchCoordGreater { reg, coord: pos }),
+                ">=" => binary_func
+                    .ops
+                    .push(LowOp::BranchCoordLess { reg, coord: pos }),
+                "!0" => binary_func
+                    .ops
+                    .push(LowOp::BranchCoordIfZero { reg, coord: pos }),
+                "=0" => binary_func
+                    .ops
+                    .push(LowOp::BranchCoordIfNonZero { reg, coord: pos }),
                 _ => {
                     return Err(Error::InvalidCondition {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
+                        file: module.take_file(),
+                        src: module.take_src(),
                         span: cond_span.clone(),
                     });
                 }
@@ -680,87 +673,95 @@ fn compile_label_node(
             let expr = sub_nodes.pop().unwrap();
             let Node::Node { span, type_, sub_nodes } = expr else {
                 return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: expr.span(),
                 });
             };
             if type_ != BracketType::Round {
                 return Err(Error::InvalidBracketType {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             }
-            compile_label_node(dialect, task, module_index, ir, sub_nodes, span, depth + 1)?;
-            ir.push(Insn::CreatePoint { pos });
+            compile_label_node(
+                dialect,
+                task,
+                module_index,
+                binary_func,
+                sub_nodes,
+                span,
+                depth + 1,
+            )?;
+            binary_func.ops.push(LowOp::PutCoord { coord: pos });
             if depth == 0 {
-                ir.push(Insn::Ret);
+                binary_func.ops.push(LowOp::Return);
             }
         }
         "while" => {
             if sub_nodes.len() != 4 {
                 return Err(Error::InvalidStatement {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             }
             let Node::Ident { span: cond_span } = &sub_nodes[1] else {
                 return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: sub_nodes[1].span(),
                 });
             };
             let cond = &module.src[cond_span.clone()];
             let Node::Ident { span: reg_span } = &sub_nodes[2] else {
                 return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: sub_nodes[2].span(),
                 });
             };
             let reg = &module.src[reg_span.clone()];
             if !reg.starts_with('r') && !reg.starts_with('R') {
                 return Err(Error::InvalidRegister {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: reg_span.clone(),
                 });
             }
             let Ok(reg) = reg[1..].parse::<usize>() else {
                 return Err(Error::InvalidRegister {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: reg_span.clone(),
                 });
             };
             if reg > 31 {
                 return Err(Error::InvalidRegister {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: reg_span.clone(),
                 });
             }
-            let reg = reg.into();
-            let pos = (depth << 32) | ir.len();
-            let cond_pos = (depth << 32) | ir.len() | 1 << 63;
-            ir.push(Insn::BranchPoint { pos: cond_pos });
-            ir.push(Insn::CreatePoint { pos });
+            let reg = Reg::new(reg as u8);
+            let pos = (depth << 32) | binary_func.ops.len();
+            let cond_pos = (depth << 32) | binary_func.ops.len() | 1 << 63;
+            binary_func.ops.push(LowOp::BranchCoord { coord: cond_pos });
+            binary_func.ops.push(LowOp::PutCoord { coord: pos });
             let insn = match cond {
-                "=" => Insn::BranchPointIfEq { pos, reg },
-                "!=" => Insn::BranchPointIfNeq { pos, reg },
-                "<" => Insn::BranchPointIfLt { pos, reg },
-                ">" => Insn::BranchPointIfGt { pos, reg },
-                "<=" => Insn::BranchPointIfLeq { pos, reg },
-                ">=" => Insn::BranchPointIfGeq { pos, reg },
-                "!0" => Insn::BranchPointIfNz { pos, reg },
-                "=0" => Insn::BranchPointIfZr { pos, reg },
+                "=" => LowOp::BranchCoordEqual { coord: pos, reg },
+                "!=" => LowOp::BranchCoordNonEqual { coord: pos, reg },
+                "<" => LowOp::BranchCoordLess { coord: pos, reg },
+                ">" => LowOp::BranchCoordGreater { coord: pos, reg },
+                "<=" => LowOp::BranchCoordLessEqual { coord: pos, reg },
+                ">=" => LowOp::BranchCoordGreaterEqual { coord: pos, reg },
+                "!0" => LowOp::BranchCoordIfNonZero { coord: pos, reg },
+                "=0" => LowOp::BranchCoordIfZero { coord: pos, reg },
                 _ => {
                     return Err(Error::InvalidCondition {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
+                        file: module.take_file(),
+                        src: module.take_src(),
                         span: cond_span.clone(),
                     });
                 }
@@ -768,86 +769,94 @@ fn compile_label_node(
             let expr = sub_nodes.pop().unwrap();
             let Node::Node { span, type_, sub_nodes } = expr else {
                 return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: expr.span(),
                 });
             };
             if type_ != BracketType::Round {
                 return Err(Error::InvalidBracketType {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             }
-            compile_label_node(dialect, task, module_index, ir, sub_nodes, span, depth + 1)?;
-            ir.push(Insn::CreatePoint { pos: cond_pos });
-            ir.push(insn);
+            compile_label_node(
+                dialect,
+                task,
+                module_index,
+                binary_func,
+                sub_nodes,
+                span,
+                depth + 1,
+            )?;
+            binary_func.ops.push(LowOp::PutCoord { coord: cond_pos });
+            binary_func.ops.push(insn);
             if depth == 0 {
-                ir.push(Insn::Ret);
+                binary_func.ops.push(LowOp::Return);
             }
         }
         "do-while" => {
             if sub_nodes.len() != 4 {
                 return Err(Error::InvalidStatement {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             }
             let Node::Ident { span: cond_span } = &sub_nodes[2] else {
                 return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: sub_nodes[2].span(),
                 });
             };
             let cond = &module.src[cond_span.clone()];
             let Node::Ident { span: reg_span } = &sub_nodes[3] else {
                 return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: sub_nodes[3].span(),
                 });
             };
             let reg = &module.src[reg_span.clone()];
             if !reg.starts_with('r') && !reg.starts_with('R') {
                 return Err(Error::InvalidRegister {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: reg_span.clone(),
                 });
             }
             let Ok(reg) = reg[1..].parse::<usize>() else {
                 return Err(Error::InvalidRegister {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: reg_span.clone(),
                 });
             };
             if reg > 31 {
                 return Err(Error::InvalidRegister {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: reg_span.clone(),
                 });
             }
-            let reg = reg.into();
-            let pos = (depth << 32) | ir.len();
-            ir.push(Insn::CreatePoint { pos });
+            let reg = Reg::new(reg as u8);
+            let pos = (depth << 32) | binary_func.ops.len();
+            binary_func.ops.push(LowOp::PutCoord { coord: pos });
             let insn = match cond {
-                "=" => Insn::BranchPointIfEq { pos, reg },
-                "!=" => Insn::BranchPointIfNeq { pos, reg },
-                "<" => Insn::BranchPointIfLt { pos, reg },
-                ">" => Insn::BranchPointIfGt { pos, reg },
-                "<=" => Insn::BranchPointIfLeq { pos, reg },
-                ">=" => Insn::BranchPointIfGeq { pos, reg },
-                "!0" => Insn::BranchPointIfNz { pos, reg },
-                "=0" => Insn::BranchPointIfZr { pos, reg },
+                "=" => LowOp::BranchCoordEqual { coord: pos, reg },
+                "!=" => LowOp::BranchCoordNonEqual { coord: pos, reg },
+                "<" => LowOp::BranchCoordLess { coord: pos, reg },
+                ">" => LowOp::BranchCoordGreater { coord: pos, reg },
+                "<=" => LowOp::BranchCoordLessEqual { coord: pos, reg },
+                ">=" => LowOp::BranchCoordGreaterEqual { coord: pos, reg },
+                "!0" => LowOp::BranchCoordIfNonZero { coord: pos, reg },
+                "=0" => LowOp::BranchCoordIfZero { coord: pos, reg },
                 _ => {
                     return Err(Error::InvalidCondition {
-                        file: mem::take(&mut module.file),
-                        src: mem::take(&mut module.src),
+                        file: module.take_file(),
+                        src: module.take_src(),
                         span: cond_span.clone(),
                     });
                 }
@@ -855,29 +864,37 @@ fn compile_label_node(
             let expr = sub_nodes.remove(1);
             let Node::Node { span, type_, sub_nodes } = expr else {
                 return Err(Error::UnexpectedToken {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span: expr.span(),
                 });
             };
             if type_ != BracketType::Round {
                 return Err(Error::InvalidBracketType {
-                    file: mem::take(&mut module.file),
-                    src: mem::take(&mut module.src),
+                    file: module.take_file(),
+                    src: module.take_src(),
                     span,
                 });
             }
-            compile_label_node(dialect, task, module_index, ir, sub_nodes, span, depth + 1)?;
-            ir.push(insn);
+            compile_label_node(
+                dialect,
+                task,
+                module_index,
+                binary_func,
+                sub_nodes,
+                span,
+                depth + 1,
+            )?;
+            binary_func.ops.push(insn);
             if depth == 0 {
-                ir.push(Insn::Ret);
+                binary_func.ops.push(LowOp::Return);
             }
         }
         _ => {
             if let Some(macro_) = MACROS.get(name) {
-                (*macro_)(dialect, task, module_index, ir, span, sub_nodes)?;
+                (*macro_)(dialect, task, module_index, binary_func, span, sub_nodes)?;
                 if depth == 0 {
-                    ir.push(Insn::Ret);
+                    binary_func.ops.push(LowOp::Return);
                 }
                 return Ok(());
             };
@@ -886,21 +903,23 @@ fn compile_label_node(
                 module = &mut task.modules[module_index];
                 name = &module.src[name_span.clone()];
                 if let Some(insn) = insn {
-                    insn.gen(&module.src, ir, sub_nodes)?;
+                    insn(module, binary_func, sub_nodes);
                     if depth == 0 {
-                        ir.push(Insn::Ret);
+                        binary_func.ops.push(LowOp::Return);
                     }
                     return Ok(());
                 }
             }
             if sub_nodes.len() == 1 {
                 if let Some(func_index) = dialect.label_indices.get(name) {
-                    ir.push(Insn::BranchLabelLinked {
-                        module_index,
-                        func_index: *func_index,
+                    binary_func.ops.push(LowOp::Call {
+                        coord: Coord {
+                            module: module_index,
+                            element: *func_index,
+                        },
                     });
                     if depth == 0 {
-                        ir.push(Insn::Ret);
+                        binary_func.ops.push(LowOp::Return);
                     }
                     return Ok(());
                 }
@@ -909,20 +928,22 @@ fn compile_label_node(
             for i in dialect.imports.iter().cloned() {
                 let include = &mut task.modules[i];
                 if let Some(func_index) = include.dialect.as_mut().unwrap().lookup_callable(&name) {
-                    ir.push(Insn::BranchLabelLinked {
-                        module_index: i,
-                        func_index,
+                    binary_func.ops.push(LowOp::Call {
+                        coord: Coord {
+                            module: i,
+                            element: func_index,
+                        },
                     });
                     if depth == 0 {
-                        ir.push(Insn::Ret);
+                        binary_func.ops.push(LowOp::Return);
                     }
                     return Ok(());
                 }
                 module = &mut task.modules[module_index];
             }
             return Err(Error::UnknownFunc {
-                file: mem::take(&mut module.file),
-                src: mem::take(&mut module.src),
+                file: module.take_file(),
+                src: module.take_src(),
                 span: name_span.clone(),
             });
         }
