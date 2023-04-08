@@ -16,12 +16,10 @@ use crate::parser::{BareModule, BracketType, Node};
 use self::{
     dialect::{assembly::AssemblyLanguage, code::CodeLanguage},
     error::{Error, Result},
-    intermediary::{Insn, Reg},
 };
 
 pub mod dialect;
 pub mod error;
-pub mod intermediary;
 
 pub const DIALECTS: Map<&str, fn() -> Box<dyn Dialect>> = phf_map! {
     "assembly" => || Box::<AssemblyLanguage>::default(),
@@ -240,10 +238,9 @@ pub struct Static {
     pub used: bool,
 }
 
-#[derive(Debug)]
-pub enum FuncData {
-    Collected { node: Node },
-    Intermediary { ir: Vec<Insn> },
+#[derive(Debug, Default)]
+pub struct FuncData {
+    pub node: Node,
 }
 
 #[derive(Debug, Default)]
@@ -274,36 +271,4 @@ pub enum Status {
 #[derive(Debug)]
 pub struct UncollectedModule {
     pub root: Vec<Node>,
-}
-
-pub enum PostProc {
-    LdStaticAbsAddr {
-        ptr: usize,
-        dst: Reg,
-        module_index: usize,
-        static_index: usize,
-    },
-    LdStaticValue {
-        ptr: usize,
-        dst: Reg,
-        module_index: usize,
-        static_index: usize,
-    },
-    BrLabelLinked {
-        ptr: usize,
-        module_index: usize,
-        func_index: usize,
-    },
-}
-
-pub enum InnerPostProc {
-    Branch { ptr: usize, pos: usize },
-    BranchPointIfEq { ptr: usize, pos: usize, reg: Reg },
-    BranchPointIfNeq { ptr: usize, pos: usize, reg: Reg },
-    BranchPointIfLt { ptr: usize, pos: usize, reg: Reg },
-    BranchPointIfGt { ptr: usize, pos: usize, reg: Reg },
-    BranchPointIfLeq { ptr: usize, pos: usize, reg: Reg },
-    BranchPointIfGeq { ptr: usize, pos: usize, reg: Reg },
-    BranchPointIfNz { ptr: usize, pos: usize, reg: Reg },
-    BranchPointIfZr { ptr: usize, pos: usize, reg: Reg },
 }

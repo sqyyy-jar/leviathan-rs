@@ -148,7 +148,7 @@ impl Dialect for AssemblyLanguage {
                         public,
                         params: vec![(None, Type::Unknown)],
                         return_: Type::Unknown,
-                        data: FuncData::Collected {
+                        data: FuncData {
                             node: sub_nodes.pop().unwrap(),
                         },
                         used: false,
@@ -323,14 +323,7 @@ fn compile_label(
         data,
         used: _,
     } = &mut dialect.labels[func_index];
-    let FuncData::Collected { node } = mem::replace(
-        data,
-        FuncData::Intermediary {
-            ir: Vec::with_capacity(0),
-        },
-    ) else {
-        unreachable!()
-    };
+    let FuncData { node } = mem::take(data);
     match node {
         Node::Ident { span } => {
             let name = &module.src[span.clone()];

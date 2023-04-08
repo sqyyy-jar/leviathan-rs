@@ -213,7 +213,7 @@ pub fn collect_fn(
         public,
         params,
         return_,
-        data: FuncData::Collected { node: expr_node },
+        data: FuncData { node: expr_node },
         used: false,
     });
     dialect.func_indices.insert(name, dialect.funcs.len() - 1);

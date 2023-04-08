@@ -8,7 +8,6 @@ use phf::{phf_map, Map};
 use crate::{
     compiler::{
         error::{Error, Result},
-        intermediary::Insn,
         CompileTask, Dialect, Func, FuncData, Module, Static, StaticData, UncollectedModule,
     },
     parser::{BracketType, Node},
@@ -133,14 +132,8 @@ impl Dialect for CodeLanguage {
         }
         for i in 0..self.funcs.len() {
             let Func { data, .. } = &mut self.funcs[i];
-            let FuncData::Collected { node } = mem::replace(
-                data,
-                FuncData::Intermediary {
-                    ir: Vec::with_capacity(0),
-                },
-            ) else {unreachable!()};
-            let ir = compile_func_body(task, module_index, node)?;
-            self.funcs[i].data = FuncData::Intermediary { ir };
+            let FuncData { node } = mem::take(data);
+            compile_func_body(task, module_index, node)?;
         }
         Ok(binary_mod)
     }
@@ -176,10 +169,6 @@ fn compile_static(module: &mut Module, node: Node) -> Result<BinaryStatic> {
     }
 }
 
-fn compile_func_body(
-    _task: &mut CompileTask,
-    _module_index: usize,
-    _expr: Node,
-) -> Result<Vec<Insn>> {
+fn compile_func_body(_task: &mut CompileTask, _module_index: usize, _expr: Node) -> Result<()> {
     todo!()
 }
