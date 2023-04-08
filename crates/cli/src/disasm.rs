@@ -13,8 +13,19 @@ use clap::{
 use leviathan_ir::binary::OffsetTable;
 use urban_common::bus::InstructionBus;
 
-pub struct Disassembler {
-    pub index: isize,
+struct Disassembler {
+    index: isize,
+    offsets: HashMap<usize, String>,
+}
+
+impl Disassembler {
+    fn addr(&self, offset: isize) -> String {
+        let addr = (self.index + offset) as usize;
+        if let Some(label) = self.offsets.get(&addr) {
+            return label.clone();
+        }
+        format!("0x{addr:08x}")
+    }
 }
 
 impl InstructionBus for Disassembler {
@@ -90,18 +101,18 @@ impl InstructionBus for Disassembler {
 
     fn l0_ldr(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t ldr r{} [0x{:08x}]",
+            " {:>08x}:\t0x{insn:08x}\t ldr r{} [{}]",
             self.index,
             reg(insn, 0),
-            self.index + signed_immediate::<22>(insn, 5) as isize * 4
+            self.addr(signed_immediate::<22>(insn, 5) as isize * 4)
         );
     }
 
     fn l0_str(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t str [0x{:08x}] r{}",
+            " {:>08x}:\t0x{insn:08x}\t str [{}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
+            self.addr(signed_immediate::<22>(insn, 0) as isize * 4),
             reg(insn, 22)
         );
     }
@@ -126,114 +137,114 @@ impl InstructionBus for Disassembler {
 
     fn l0_branch(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t branch [0x{:08x}]",
+            " {:>08x}:\t0x{insn:08x}\t branch [{}]",
             self.index,
-            self.index + signed_immediate::<27>(insn, 0) as isize * 4
+            self.addr(signed_immediate::<27>(insn, 0) as isize * 4)
         );
     }
 
     fn l0_branch_l(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t branch.l [0x{:08x}]",
+            " {:>08x}:\t0x{insn:08x}\t branch.l [{}]",
             self.index,
-            self.index + signed_immediate::<27>(insn, 0) as isize * 4
+            self.addr(signed_immediate::<27>(insn, 0) as isize * 4)
         );
     }
 
     fn l0_branch_ld(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t branch.ld [0x{:08x}]",
+            " {:>08x}:\t0x{insn:08x}\t branch.ld [{}]",
             self.index,
-            self.index + signed_immediate::<27>(insn, 0) as isize * 4
+            self.addr(signed_immediate::<27>(insn, 0) as isize * 4)
         );
     }
 
     fn l0_branch_l_ld(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t branch.l.ld [0x{:08x}]",
+            " {:>08x}:\t0x{insn:08x}\t branch.l.ld [{}]",
             self.index,
-            self.index + signed_immediate::<27>(insn, 0) as isize * 4
+            self.addr(signed_immediate::<27>(insn, 0) as isize * 4)
         );
     }
 
     fn l0_branch_eq(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t branch.eq [0x{:08x}] r{}",
+            " {:>08x}:\t0x{insn:08x}\t branch.eq [{}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
+            self.addr(signed_immediate::<22>(insn, 0) as isize * 4),
             reg(insn, 22)
         );
     }
 
     fn l0_branch_ne(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t branch.ne [0x{:08x}] r{}",
+            " {:>08x}:\t0x{insn:08x}\t branch.ne [{}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
+            self.addr(signed_immediate::<22>(insn, 0) as isize * 4),
             reg(insn, 22)
         );
     }
 
     fn l0_branch_lt(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t branch.lt [0x{:08x}] r{}",
+            " {:>08x}:\t0x{insn:08x}\t branch.lt [{}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
+            self.addr(signed_immediate::<22>(insn, 0) as isize * 4),
             reg(insn, 22)
         );
     }
 
     fn l0_branch_gt(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t branch.gt [0x{:08x}] r{}",
+            " {:>08x}:\t0x{insn:08x}\t branch.gt [{}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
+            self.addr(signed_immediate::<22>(insn, 0) as isize * 4),
             reg(insn, 22)
         );
     }
 
     fn l0_branch_le(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t branch.le [0x{:08x}] r{}",
+            " {:>08x}:\t0x{insn:08x}\t branch.le [{}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
+            self.addr(signed_immediate::<22>(insn, 0) as isize * 4),
             reg(insn, 22)
         );
     }
 
     fn l0_branch_ge(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t branch.ge [0x{:08x}] r{}",
+            " {:>08x}:\t0x{insn:08x}\t branch.ge [{}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
+            self.addr(signed_immediate::<22>(insn, 0) as isize * 4),
             reg(insn, 22)
         );
     }
 
     fn l0_branch_zr(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t branch.zr [0x{:08x}] {}",
+            " {:>08x}:\t0x{insn:08x}\t branch.zr [{}] {}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
+            self.addr(signed_immediate::<22>(insn, 0) as isize * 4),
             reg(insn, 22)
         );
     }
 
     fn l0_branch_nz(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t branch.nz [0x{:08x}] r{}",
+            " {:>08x}:\t0x{insn:08x}\t branch.nz [{}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
+            self.addr(signed_immediate::<22>(insn, 0) as isize * 4),
             reg(insn, 22)
         );
     }
 
     fn l0_lea(&mut self, insn: u32) {
         println!(
-            " {:>08x}:\t0x{insn:08x}\t lea r{} [0x{:08x}]",
+            " {:>08x}:\t0x{insn:08x}\t lea r{} [{}]",
             self.index,
             reg(insn, 0),
-            self.index + signed_immediate::<22>(insn, 5) as isize * 4
+            self.addr(signed_immediate::<22>(insn, 5) as isize * 4)
         );
     }
 
@@ -779,12 +790,12 @@ pub fn disasm(matches: &ArgMatches) -> Result<()> {
     };
     file.seek(SeekFrom::Start(8))?;
     let entrypoint = file.read_u64::<LittleEndian>()? as usize;
-    let mut disasm = Disassembler { index: 0 };
+    let mut disasm = Disassembler { index: 0, offsets };
     while let Ok(insn) = file.read_u32::<LittleEndian>() {
         if disasm.index == entrypoint as isize {
             println!("entrypoint:");
         }
-        if let Some(name) = offsets.get(&(disasm.index as usize)) {
+        if let Some(name) = disasm.offsets.get(&(disasm.index as usize)) {
             println!("<{name}>:");
         }
         disasm.process(insn);
