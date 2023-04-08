@@ -328,6 +328,24 @@ pub const INSN_MACROS: Map<&'static str, &[(&[Component], InsnMacro)]> = phf_map
             dst:reg:Reg
         ),
     ],
+    "zero" => &[
+        insn!(
+            LowOp::Zero { dst },
+            dst:reg:Reg
+        ),
+    ],
+    "dbg" => &[
+        insn!(
+            LowOp::Debug { reg },
+            reg:reg:Reg
+        ),
+    ],
+    "inc" => &[
+        insn!(
+            LowOp::Increment { reg },
+            reg:reg:Reg
+        ),
+    ],
     "nop" => &[insn!(LowOp::Nop,)],
     "halt" => &[insn!(LowOp::Halt,)],
     "ret" => &[insn!(LowOp::Return,)],

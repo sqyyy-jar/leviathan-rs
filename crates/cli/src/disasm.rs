@@ -542,6 +542,18 @@ impl InstructionBus for Disassembler {
         println!("ldpc r{}", reg(insn, 0));
     }
 
+    fn l4_zero(&mut self, insn: u32) {
+        println!("zero r{}", reg(insn, 0));
+    }
+
+    fn l4_dbg(&mut self, insn: u32) {
+        println!("dbg r{}", reg(insn, 0));
+    }
+
+    fn l4_inc(&mut self, insn: u32) {
+        println!("inc r{}", reg(insn, 0));
+    }
+
     fn l5_nop(&mut self, _insn: u32) {
         println!("nop");
     }
