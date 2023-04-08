@@ -41,7 +41,7 @@ impl Binary {
         const _FLAGS_OFFSET: u64 = 4;
         const ENTRYPOINT_OFFSET: u64 = 8;
         const HEADER_LENGTH: u64 = 16;
-        let mut offset_table = OffsetTable::OffsetKey {
+        let mut offset_table = OffsetTable {
             table: HashMap::new(),
         };
         out.write_all(b"\0urb")?;
@@ -59,6 +59,7 @@ impl Binary {
                 if offset_out.is_some() && module.name.is_some() {
                     if let Some(name) = static_.name() {
                         offset_table.add(
+                            's',
                             format!("{}::{name}", module.name.as_deref().unwrap()),
                             static_ptr,
                         );
@@ -78,6 +79,7 @@ impl Binary {
                 if offset_out.is_some() && module.name.is_some() {
                     if let Some(name) = &func.name {
                         offset_table.add(
+                            'f',
                             format!("{}::{name}", module.name.as_deref().unwrap()),
                             func_ptr,
                         );
@@ -677,70 +679,41 @@ pub struct ModuleTable {
     pub funcs: HashMap<usize, usize>,
 }
 
-pub enum OffsetTable {
-    NameKey { table: HashMap<String, usize> },
-    OffsetKey { table: HashMap<usize, String> },
+pub struct OffsetTable {
+    pub table: HashMap<usize, (char, String)>,
 }
 
 impl OffsetTable {
-    pub fn add(&mut self, name: String, offset: usize) {
-        match self {
-            OffsetTable::NameKey { table } => {
-                table.insert(name, offset);
-            }
-            OffsetTable::OffsetKey { table } => {
-                table.insert(offset, name);
-            }
-        }
+    pub fn add(&mut self, c: char, name: String, offset: usize) {
+        self.table.insert(offset, (c, name));
     }
 
     pub fn write(&self, out: &mut impl Write) -> Result<()> {
-        match self {
-            OffsetTable::NameKey { table } => {
-                for (name, offset) in table {
-                    out.write_all(name.as_bytes())?;
-                    out.write_u8(b' ')?;
-                    out.write_all(format!("{offset:x}").as_bytes())?;
-                    out.write_u8(b'\n')?;
-                }
-            }
-            OffsetTable::OffsetKey { table } => {
-                for (offset, name) in table {
-                    out.write_all(name.as_bytes())?;
-                    out.write_u8(b' ')?;
-                    out.write_all(format!("{offset:x}").as_bytes())?;
-                    out.write_u8(b'\n')?;
-                }
-            }
+        for (offset, (c, name)) in &self.table {
+            out.write_u8(*c as u8)?;
+            out.write_u8(b' ')?;
+            out.write_all(name.as_bytes())?;
+            out.write_u8(b' ')?;
+            out.write_all(format!("{offset:x}").as_bytes())?;
+            out.write_u8(b'\n')?;
         }
         Ok(())
-    }
-
-    pub fn read_name_key(read: &str) -> Result<Self> {
-        let mut table = HashMap::with_capacity(0);
-        for line in read.lines() {
-            let mut split = line.split(' ');
-            let Some(name) = split.next() else {
-                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
-            };
-            let Some(offset) = split.next() else {
-                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
-            };
-            let None = split.next() else {
-                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
-            };
-            let Ok(offset) = usize::from_str_radix(offset, 16) else {
-                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
-            };
-            table.insert(name.to_string(), offset);
-        }
-        Ok(Self::NameKey { table })
     }
 
     pub fn read_offset_key(read: &str) -> Result<Self> {
         let mut table = HashMap::with_capacity(0);
         for line in read.lines() {
             let mut split = line.split(' ');
+            let Some(c) = split.next() else {
+                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
+            };
+            let c = match c {
+                "s" => 's',
+                "f" => 'f',
+                _ => {
+                    return Err(Error::new(ErrorKind::Other, "Invalid file format"));
+                }
+            };
             let Some(name) = split.next() else {
                 return Err(Error::new(ErrorKind::Other, "Invalid file format"));
             };
@@ -753,9 +726,9 @@ impl OffsetTable {
             let Ok(offset) = usize::from_str_radix(offset, 16) else {
                 return Err(Error::new(ErrorKind::Other, "Invalid file format"));
             };
-            table.insert(offset, name.to_string());
+            table.insert(offset, (c, name.to_string()));
         }
-        Ok(Self::OffsetKey { table })
+        Ok(Self { table })
     }
 }
 
