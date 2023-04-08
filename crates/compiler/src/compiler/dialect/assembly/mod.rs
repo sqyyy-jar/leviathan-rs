@@ -258,6 +258,11 @@ fn compile_static(
     static_index: usize,
 ) -> Result<BinaryStatic> {
     let module = &mut task.modules[module_index];
+    let name = if task.collect_offsets {
+        get_key_by_value(&dialect.static_indices, &static_index).cloned()
+    } else {
+        None
+    };
     let Static { data, used: _ } = &mut dialect.statics[static_index];
     let StaticData { node } = mem::take(data);
     match node {
@@ -266,10 +271,10 @@ fn compile_static(
             src: module.take_src(),
             span,
         }),
-        Node::Int { value, .. } => Ok(BinaryStatic::Int(value)),
-        Node::UInt { value, .. } => Ok(BinaryStatic::UInt(value)),
-        Node::Float { value, .. } => Ok(BinaryStatic::Float(value)),
-        Node::String { value, .. } => Ok(BinaryStatic::String(value)),
+        Node::Int { value, .. } => Ok(BinaryStatic::Int { name, value }),
+        Node::UInt { value, .. } => Ok(BinaryStatic::UInt { name, value }),
+        Node::Float { value, .. } => Ok(BinaryStatic::Float { name, value }),
+        Node::String { value, .. } => Ok(BinaryStatic::String { name, value }),
         Node::Node {
             span,
             type_,
@@ -304,7 +309,14 @@ fn compile_static(
                     span: span.clone(),
                 });
             };
-            let value = (*static_func)(task, module_index, span.clone(), sub_nodes)?;
+            let value = (*static_func)(
+                dialect,
+                task,
+                module_index,
+                static_index,
+                span.clone(),
+                sub_nodes,
+            )?;
             Ok(value)
         }
         _ => unreachable!(),
@@ -344,7 +356,9 @@ fn compile_label(
             };
             let static_ = binary_mod.statics.get_mut(static_index).unwrap();
             match static_ {
-                BinaryStatic::Int(_) | BinaryStatic::UInt(_) | BinaryStatic::Float(_) => {
+                BinaryStatic::Int { .. }
+                | BinaryStatic::UInt { .. }
+                | BinaryStatic::Float { .. } => {
                     binary_func.ops.push(LowOp::LoadStatic64 {
                         dst: Reg::new(0),
                         coord: Coord {
@@ -353,7 +367,7 @@ fn compile_label(
                         },
                     });
                 }
-                BinaryStatic::String(_) | BinaryStatic::FilledBuffer { .. } => {
+                BinaryStatic::String { .. } | BinaryStatic::FilledBuffer { .. } => {
                     binary_func.ops.push(LowOp::LoadStatic64 {
                         dst: Reg::new(0),
                         coord: Coord {
@@ -375,7 +389,9 @@ fn compile_label(
                             immediate: value as i32,
                         });
                     } else {
-                        binary_func.locals.push(BinaryStatic::Int(value));
+                        binary_func
+                            .locals
+                            .push(BinaryStatic::Int { name: None, value });
                         binary_func.ops.push(LowOp::LoadLocalStatic64 {
                             dst: Reg::new(0),
                             coord: binary_func.locals.len() - 1,
@@ -389,7 +405,9 @@ fn compile_label(
                             immediate: value as u32,
                         });
                     } else {
-                        binary_func.locals.push(BinaryStatic::UInt(value));
+                        binary_func
+                            .locals
+                            .push(BinaryStatic::UInt { name: None, value });
                         binary_func.ops.push(LowOp::LoadLocalStatic64 {
                             dst: Reg::new(0),
                             coord: binary_func.locals.len() - 1,
@@ -403,7 +421,9 @@ fn compile_label(
                             immediate: 0,
                         });
                     } else {
-                        binary_func.locals.push(BinaryStatic::Float(value));
+                        binary_func
+                            .locals
+                            .push(BinaryStatic::Float { name: None, value });
                         binary_func.ops.push(LowOp::LoadLocalStatic64 {
                             dst: Reg::new(0),
                             coord: binary_func.locals.len() - 1,
@@ -416,7 +436,9 @@ fn compile_label(
             Ok(binary_func.to_func())
         }
         Node::String { value, .. } => {
-            binary_func.locals.push(BinaryStatic::String(value));
+            binary_func
+                .locals
+                .push(BinaryStatic::String { name: None, value });
             binary_func.ops.push(LowOp::LoadLocalStaticAddress {
                 dst: Reg::new(0),
                 coord: binary_func.locals.len() - 1,
@@ -509,7 +531,9 @@ fn compile_label_node(
                                         immediate: value as i32,
                                     });
                                 } else {
-                                    binary_func.locals.push(BinaryStatic::Int(value));
+                                    binary_func
+                                        .locals
+                                        .push(BinaryStatic::Int { name: None, value });
                                     binary_func.ops.push(LowOp::LoadLocalStatic64 {
                                         dst: Reg::new(0),
                                         coord: binary_func.locals.len() - 1,
@@ -523,7 +547,9 @@ fn compile_label_node(
                                         immediate: value as u32,
                                     });
                                 } else {
-                                    binary_func.locals.push(BinaryStatic::UInt(value));
+                                    binary_func
+                                        .locals
+                                        .push(BinaryStatic::UInt { name: None, value });
                                     binary_func.ops.push(LowOp::LoadLocalStatic64 {
                                         dst: Reg::new(0),
                                         coord: binary_func.locals.len() - 1,
@@ -537,7 +563,9 @@ fn compile_label_node(
                                         immediate: 0,
                                     });
                                 } else {
-                                    binary_func.locals.push(BinaryStatic::Float(value));
+                                    binary_func
+                                        .locals
+                                        .push(BinaryStatic::Float { name: None, value });
                                     binary_func.ops.push(LowOp::LoadLocalStatic64 {
                                         dst: Reg::new(0),
                                         coord: binary_func.locals.len() - 1,
@@ -555,7 +583,9 @@ fn compile_label_node(
                                 span,
                             });
                         }
-                        binary_func.locals.push(BinaryStatic::String(value));
+                        binary_func
+                            .locals
+                            .push(BinaryStatic::String { name: None, value });
                         binary_func.ops.push(LowOp::LoadLocalStaticAddress {
                             dst: Reg::new(0),
                             coord: binary_func.locals.len() - 1,

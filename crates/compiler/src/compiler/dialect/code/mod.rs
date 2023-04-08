@@ -11,7 +11,7 @@ use crate::{
         CompileTask, Dialect, Func, FuncData, Module, Static, StaticData, UncollectedModule,
     },
     parser::{BracketType, Node},
-    util::source::Span,
+    util::{get_key_by_value, source::Span},
 };
 
 use self::keywords::{collect_fn, collect_static, collect_use};
@@ -125,9 +125,14 @@ impl Dialect for CodeLanguage {
             new_imports.push(*import);
         }
         for i in 0..self.statics.len() {
+            let name = if task.collect_offsets {
+                get_key_by_value(&self.static_indices, &i).cloned()
+            } else {
+                None
+            };
             let static_ = &mut self.statics[i];
             let StaticData { node } = mem::take(&mut static_.data);
-            let value = compile_static(module, node)?;
+            let value = compile_static(module, node, name)?;
             binary_mod.statics.insert(i, value);
         }
         for i in 0..self.funcs.len() {
@@ -149,17 +154,17 @@ impl Dialect for CodeLanguage {
     }
 }
 
-fn compile_static(module: &mut Module, node: Node) -> Result<BinaryStatic> {
+fn compile_static(module: &mut Module, node: Node, name: Option<String>) -> Result<BinaryStatic> {
     match node {
         Node::Ident { span } => Err(Error::UnexpectedToken {
             file: module.take_file(),
             src: module.take_src(),
             span,
         }),
-        Node::Int { value, .. } => Ok(BinaryStatic::Int(value)),
-        Node::UInt { value, .. } => Ok(BinaryStatic::UInt(value)),
-        Node::Float { value, .. } => Ok(BinaryStatic::Float(value)),
-        Node::String { value, .. } => Ok(BinaryStatic::String(value)),
+        Node::Int { value, .. } => Ok(BinaryStatic::Int { name, value }),
+        Node::UInt { value, .. } => Ok(BinaryStatic::UInt { name, value }),
+        Node::Float { value, .. } => Ok(BinaryStatic::Float { name, value }),
+        Node::String { value, .. } => Ok(BinaryStatic::String { name, value }),
         Node::Node {
             span: _,
             type_: _,

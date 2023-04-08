@@ -9,12 +9,16 @@ use crate::{
         CompileTask,
     },
     parser::Node,
-    util::source::Span,
+    util::{get_key_by_value, source::Span},
 };
 
+use super::AssemblyLanguage;
+
 pub type StaticFunc<'a> = fn(
+    dialect: &mut AssemblyLanguage,
     task: &mut CompileTask,
     module_index: usize,
+    static_index: usize,
     span: Span,
     nodes: Vec<Node>,
 ) -> Result<BinaryStatic>;
@@ -24,12 +28,19 @@ pub const STATIC_FUNCS: Map<&'static str, StaticFunc> = phf_map! {
 };
 
 fn static_buffer(
+    dialect: &mut AssemblyLanguage,
     task: &mut CompileTask,
     module_index: usize,
+    static_index: usize,
     span: Span,
     mut nodes: Vec<Node>,
 ) -> Result<BinaryStatic> {
     let module = &mut task.modules[module_index];
+    let name = if task.collect_offsets {
+        get_key_by_value(&dialect.static_indices, &static_index).cloned()
+    } else {
+        None
+    };
     if nodes.len() != 2 {
         return Err(Error::InvalidCallSignature {
             file: mem::take(&mut module.file),
@@ -68,5 +79,9 @@ fn static_buffer(
             })
         }
     };
-    Ok(BinaryStatic::FilledBuffer { size, fill: 0 })
+    Ok(BinaryStatic::FilledBuffer {
+        name,
+        size,
+        fill: 0,
+    })
 }

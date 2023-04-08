@@ -56,11 +56,13 @@ impl Binary {
             for (static_index, static_) in &module.statics {
                 let static_ptr = static_.assemble(&mut ptr, out)?;
                 statics.insert(*static_index, static_ptr);
-                if offset_out.is_some() {
-                    offset_table.add(
-                        format!("{}::static", module.name.as_deref().unwrap_or("{unknown}")),
-                        static_ptr,
-                    );
+                if offset_out.is_some() && module.name.is_some() {
+                    if let Some(name) = static_.name() {
+                        offset_table.add(
+                            format!("{}::{name}", module.name.as_deref().unwrap()),
+                            static_ptr,
+                        );
+                    }
                 }
             }
             for (func_index, func) in &module.funcs {
@@ -73,14 +75,12 @@ impl Binary {
                 let mut local_post_procs = Vec::with_capacity(0);
                 let func_ptr = ptr;
                 funcs.insert(*func_index, func_ptr);
-                if offset_out.is_some() {
+                if offset_out.is_some() && module.name.is_some() {
                     if let Some(name) = &func.name {
                         offset_table.add(
-                            format!("{}::{name}", module.name.as_deref().unwrap_or("{unknown}")),
+                            format!("{}::{name}", module.name.as_deref().unwrap()),
                             func_ptr,
                         );
-                    } else {
-                        offset_table.add("{unknown}".to_string(), func_ptr);
                     }
                 }
                 for op in &func.ops {
@@ -580,30 +580,56 @@ impl Default for BinaryModule {
 
 #[derive(Debug)]
 pub enum BinaryStatic {
-    Int(i64),
-    UInt(u64),
-    Float(f64),
-    String(String),
-    FilledBuffer { size: usize, fill: u8 },
+    Int {
+        name: Option<String>,
+        value: i64,
+    },
+    UInt {
+        name: Option<String>,
+        value: u64,
+    },
+    Float {
+        name: Option<String>,
+        value: f64,
+    },
+    String {
+        name: Option<String>,
+        value: String,
+    },
+    FilledBuffer {
+        name: Option<String>,
+        size: usize,
+        fill: u8,
+    },
 }
 
 impl BinaryStatic {
+    pub fn name(&self) -> Option<&String> {
+        match self {
+            BinaryStatic::Int { name, .. }
+            | BinaryStatic::UInt { name, .. }
+            | BinaryStatic::Float { name, .. }
+            | BinaryStatic::String { name, .. }
+            | BinaryStatic::FilledBuffer { name, .. } => name.as_ref(),
+        }
+    }
+
     pub fn assemble(&self, ptr: &mut usize, out: &mut (impl Write + Seek)) -> Result<usize> {
         let mut addr = *ptr;
         match self {
-            BinaryStatic::Int(value) => {
+            BinaryStatic::Int { value, .. } => {
                 out.write_i64::<LittleEndian>(*value)?;
                 *ptr += 8;
             }
-            BinaryStatic::UInt(value) => {
+            BinaryStatic::UInt { value, .. } => {
                 out.write_u64::<LittleEndian>(*value)?;
                 *ptr += 8;
             }
-            BinaryStatic::Float(value) => {
+            BinaryStatic::Float { value, .. } => {
                 out.write_f64::<LittleEndian>(*value)?;
                 *ptr += 8;
             }
-            BinaryStatic::String(value) => {
+            BinaryStatic::String { value, .. } => {
                 out.write_u64::<LittleEndian>(value.len() as u64)?;
                 *ptr += 8;
                 addr = *ptr;
@@ -614,7 +640,7 @@ impl BinaryStatic {
                     *ptr += 1;
                 }
             }
-            BinaryStatic::FilledBuffer { size, fill } => {
+            BinaryStatic::FilledBuffer { size, fill, .. } => {
                 *ptr += *size;
                 for _ in 0..*size {
                     out.write_u8(*fill)?;
