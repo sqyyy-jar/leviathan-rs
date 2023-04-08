@@ -1,5 +1,6 @@
 use std::{
-    fs::File,
+    collections::HashMap,
+    fs::{self, File},
     io::{Seek, SeekFrom},
     path::PathBuf,
 };
@@ -9,6 +10,7 @@ use clap::{
     error::{ErrorKind, Result},
     ArgMatches, Error,
 };
+use leviathan_ir::binary::OffsetTable;
 use urban_common::bus::InstructionBus;
 
 pub struct Disassembler {
@@ -91,7 +93,7 @@ impl InstructionBus for Disassembler {
             " {:>08x}:\t0x{insn:08x}\t ldr r{} [0x{:08x}]",
             self.index,
             reg(insn, 0),
-            self.index + signed_immediate::<22>(insn, 5) as isize
+            self.index + signed_immediate::<22>(insn, 5) as isize * 4
         );
     }
 
@@ -99,7 +101,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t str [0x{:08x}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize,
+            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
             reg(insn, 22)
         );
     }
@@ -126,7 +128,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t branch [0x{:08x}]",
             self.index,
-            self.index + signed_immediate::<27>(insn, 0) as isize
+            self.index + signed_immediate::<27>(insn, 0) as isize * 4
         );
     }
 
@@ -134,7 +136,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t branch.l [0x{:08x}]",
             self.index,
-            self.index + signed_immediate::<27>(insn, 0) as isize
+            self.index + signed_immediate::<27>(insn, 0) as isize * 4
         );
     }
 
@@ -142,7 +144,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t branch.ld [0x{:08x}]",
             self.index,
-            self.index + signed_immediate::<27>(insn, 0) as isize
+            self.index + signed_immediate::<27>(insn, 0) as isize * 4
         );
     }
 
@@ -150,7 +152,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t branch.l.ld [0x{:08x}]",
             self.index,
-            self.index + signed_immediate::<27>(insn, 0) as isize
+            self.index + signed_immediate::<27>(insn, 0) as isize * 4
         );
     }
 
@@ -158,7 +160,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t branch.eq [0x{:08x}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize,
+            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
             reg(insn, 22)
         );
     }
@@ -167,7 +169,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t branch.ne [0x{:08x}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize,
+            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
             reg(insn, 22)
         );
     }
@@ -176,7 +178,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t branch.lt [0x{:08x}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize,
+            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
             reg(insn, 22)
         );
     }
@@ -185,7 +187,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t branch.gt [0x{:08x}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize,
+            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
             reg(insn, 22)
         );
     }
@@ -194,7 +196,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t branch.le [0x{:08x}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize,
+            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
             reg(insn, 22)
         );
     }
@@ -203,7 +205,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t branch.ge [0x{:08x}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize,
+            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
             reg(insn, 22)
         );
     }
@@ -212,7 +214,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t branch.zr [0x{:08x}] {}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize,
+            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
             reg(insn, 22)
         );
     }
@@ -221,7 +223,7 @@ impl InstructionBus for Disassembler {
         println!(
             " {:>08x}:\t0x{insn:08x}\t branch.nz [0x{:08x}] r{}",
             self.index,
-            self.index + signed_immediate::<22>(insn, 0) as isize,
+            self.index + signed_immediate::<22>(insn, 0) as isize * 4,
             reg(insn, 22)
         );
     }
@@ -231,7 +233,7 @@ impl InstructionBus for Disassembler {
             " {:>08x}:\t0x{insn:08x}\t lea r{} [0x{:08x}]",
             self.index,
             reg(insn, 0),
-            self.index + signed_immediate::<22>(insn, 5) as isize
+            self.index + signed_immediate::<22>(insn, 5) as isize * 4
         );
     }
 
@@ -762,19 +764,31 @@ impl InstructionBus for Disassembler {
 
 pub fn disasm(matches: &ArgMatches) -> Result<()> {
     let file: &PathBuf = matches.get_one("FILE").unwrap();
+    let mut offsets = if let Some(file) = matches.get_one::<PathBuf>("OFFSETS") {
+        let offset_source = fs::read_to_string(file)?;
+        let OffsetTable::OffsetKey { table } = OffsetTable::read_offset_key(&offset_source)? else {
+            unreachable!()
+        };
+        table
+    } else {
+        HashMap::with_capacity(0)
+    };
     let file = File::open(file);
     let Ok(mut file) = file else {
         return Err(Error::raw(ErrorKind::Io, file.unwrap_err()));
     };
     file.seek(SeekFrom::Start(8))?;
-    let entry = file.read_u64::<LittleEndian>()? / 4;
+    offsets.insert(
+        file.read_u64::<LittleEndian>()? as usize,
+        "main".to_string(),
+    );
     let mut disasm = Disassembler { index: 0 };
     while let Ok(insn) = file.read_u32::<LittleEndian>() {
-        if disasm.index == entry as isize {
-            println!("<main>:");
+        if let Some(name) = offsets.get(&(disasm.index as usize)) {
+            println!("<{name}>:");
         }
         disasm.process(insn);
-        disasm.index += 1;
+        disasm.index += 4;
     }
     Ok(())
 }

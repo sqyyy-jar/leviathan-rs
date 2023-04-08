@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 leviathan-compiler = { path = "../compiler" }
+leviathan-ir = { path = "../ir" }
 clap = { version = "4.1.11", features = ["cargo"] }
 serde = { version = "1.0.158", features = ["derive"] }
 toml = "0.7.3"

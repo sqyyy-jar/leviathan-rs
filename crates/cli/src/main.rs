@@ -15,15 +15,21 @@ fn main() {
         .subcommand_required(true)
         .subcommands([
             command!("version").alias("v").about("Shows the version"),
-            command!("build").alias("b").about("Build a project"),
+            command!("build")
+                .alias("b")
+                .about("Build a project")
+                .arg(arg!(--"no-offsets").required(false)),
             command!("disasm")
                 .alias("d")
                 .about("Disassemble a binary")
-                .arg(
+                .args([
                     arg!(<FILE>)
                         .value_parser(value_parser!(PathBuf))
                         .required(true),
-                ),
+                    arg!(<OFFSETS>)
+                        .value_parser(value_parser!(PathBuf))
+                        .required(false),
+                ]),
         ]);
     let matches = cmd.get_matches_mut();
     match matches.subcommand() {

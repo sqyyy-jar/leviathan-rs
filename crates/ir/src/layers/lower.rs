@@ -4,6 +4,7 @@ use super::Coord;
 
 pub struct LowerLayer {
     coord_index: usize,
+    pub name: Option<String>,
     pub locals: Vec<BinaryStatic>,
     pub ops: Vec<LowOp>,
 }
@@ -17,6 +18,7 @@ impl LowerLayer {
 
     pub fn to_func(self) -> BinaryFunc {
         BinaryFunc {
+            name: self.name,
             locals: self.locals,
             ops: self.ops,
         }
@@ -27,6 +29,7 @@ impl Default for LowerLayer {
     fn default() -> Self {
         Self {
             coord_index: 0,
+            name: None,
             locals: Vec::with_capacity(0),
             ops: Vec::with_capacity(0),
         }

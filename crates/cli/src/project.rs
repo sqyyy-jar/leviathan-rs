@@ -38,7 +38,7 @@ enum LoadError {
     Compile(leviathan_compiler::compiler::error::Error),
 }
 
-pub fn build(_matches: &ArgMatches) -> Result<()> {
+pub fn build(matches: &ArgMatches) -> Result<()> {
     let config = read_to_string("build.lvt.toml");
     if let Err(err) = config {
         if let std::io::ErrorKind::NotFound = err.kind() {
@@ -114,7 +114,12 @@ pub fn build(_matches: &ArgMatches) -> Result<()> {
             .binary_path
             .unwrap_or_else(|| format!("out/{}.bin", config.package.name)),
     )?;
-    if let Err(err) = task.assemble(&mut binary) {
+    let mut offset_out = if !matches.get_flag("no-offsets") {
+        Some(File::create(format!("out/{}.map", config.package.name))?)
+    } else {
+        None
+    };
+    if let Err(err) = task.assemble(&mut binary, offset_out.as_mut()) {
         err.abort();
     };
     Ok(())

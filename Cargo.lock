@@ -341,6 +341,7 @@ dependencies = [
  "chrono",
  "clap",
  "leviathan-compiler",
+ "leviathan-ir",
  "serde",
  "toml",
  "urban-common",

@@ -175,13 +175,17 @@ impl CompileTask {
         Ok(())
     }
 
-    pub fn assemble(&mut self, out: &mut (impl Write + Seek)) -> Result<()> {
+    pub fn assemble(
+        &mut self,
+        out: &mut (impl Write + Seek),
+        offset_out: Option<&mut impl Write>,
+    ) -> Result<()> {
         if self.status != Status::Compiled && self.status != Status::Filtered {
             return Err(Error::InvalidOperation);
         }
         self.status = Status::Invalid;
         assert!(self.main.is_some());
-        self.binary.assemble(out, self.main.unwrap())?;
+        self.binary.assemble(out, offset_out, self.main.unwrap())?;
         Ok(())
     }
 }

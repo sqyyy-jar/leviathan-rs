@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    io::{Result, Seek, SeekFrom, Write},
+    io::{Error, ErrorKind, Result, Seek, SeekFrom, Write},
 };
 
 use byteorder::{LittleEndian, WriteBytesExt};
@@ -32,10 +32,18 @@ pub struct Binary {
 }
 
 impl Binary {
-    pub fn assemble(&self, out: &mut (impl Write + Seek), main: Coord) -> Result<()> {
+    pub fn assemble(
+        &self,
+        out: &mut (impl Write + Seek),
+        offset_out: Option<&mut impl Write>,
+        main: Coord,
+    ) -> Result<()> {
         const _FLAGS_OFFSET: u64 = 4;
         const ENTRYPOINT_OFFSET: u64 = 8;
         const HEADER_LENGTH: u64 = 16;
+        let mut offset_table = OffsetTable::OffsetKey {
+            table: HashMap::new(),
+        };
         out.write_all(b"\0urb")?;
         out.write_u32::<LittleEndian>(EXECUTABLE)?;
         out.write_u64::<LittleEndian>(0)?;
@@ -48,6 +56,9 @@ impl Binary {
             for (static_index, static_) in &module.statics {
                 let static_ptr = static_.assemble(&mut ptr, out)?;
                 statics.insert(*static_index, static_ptr);
+                if offset_out.is_some() {
+                    offset_table.add("static".to_string(), static_ptr);
+                }
             }
             for (func_index, func) in &module.funcs {
                 let mut locals = HashMap::with_capacity(func.locals.len());
@@ -59,6 +70,13 @@ impl Binary {
                 let mut local_post_procs = Vec::with_capacity(0);
                 let func_ptr = ptr;
                 funcs.insert(*func_index, func_ptr);
+                if offset_out.is_some() {
+                    if let Some(name) = &func.name {
+                        offset_table.add(name.clone(), func_ptr);
+                    } else {
+                        offset_table.add("func".to_string(), func_ptr);
+                    }
+                }
                 for op in &func.ops {
                     match op {
                         LowOp::PutCoord { coord } => {
@@ -522,6 +540,9 @@ impl Binary {
         }
         out.seek(SeekFrom::Start(ENTRYPOINT_OFFSET))?;
         out.write_u64::<LittleEndian>(modules[&main.module].funcs[&main.element] as u64)?;
+        if let Some(offset_out) = offset_out {
+            offset_table.write(offset_out)?;
+        }
         Ok(())
     }
 }
@@ -536,6 +557,7 @@ impl Default for Binary {
 
 #[derive(Debug)]
 pub struct BinaryModule {
+    pub name: Option<String>,
     pub statics: HashMap<usize, BinaryStatic>,
     pub funcs: HashMap<usize, BinaryFunc>,
 }
@@ -543,6 +565,7 @@ pub struct BinaryModule {
 impl Default for BinaryModule {
     fn default() -> Self {
         Self {
+            name: None,
             statics: HashMap::with_capacity(0),
             funcs: HashMap::with_capacity(0),
         }
@@ -602,6 +625,7 @@ impl BinaryStatic {
 
 #[derive(Debug)]
 pub struct BinaryFunc {
+    pub name: Option<String>,
     pub locals: Vec<BinaryStatic>,
     pub ops: Vec<LowOp>,
 }
@@ -609,6 +633,7 @@ pub struct BinaryFunc {
 impl Default for BinaryFunc {
     fn default() -> Self {
         Self {
+            name: None,
             locals: Vec::with_capacity(0),
             ops: Vec::with_capacity(0),
         }
@@ -618,6 +643,88 @@ impl Default for BinaryFunc {
 pub struct ModuleTable {
     pub statics: HashMap<usize, usize>,
     pub funcs: HashMap<usize, usize>,
+}
+
+pub enum OffsetTable {
+    NameKey { table: HashMap<String, usize> },
+    OffsetKey { table: HashMap<usize, String> },
+}
+
+impl OffsetTable {
+    pub fn add(&mut self, name: String, offset: usize) {
+        match self {
+            OffsetTable::NameKey { table } => {
+                table.insert(name, offset);
+            }
+            OffsetTable::OffsetKey { table } => {
+                table.insert(offset, name);
+            }
+        }
+    }
+
+    pub fn write(&self, out: &mut impl Write) -> Result<()> {
+        match self {
+            OffsetTable::NameKey { table } => {
+                for (name, offset) in table {
+                    out.write_all(name.as_bytes())?;
+                    out.write_u8(b' ')?;
+                    out.write_all(format!("{offset:x}").as_bytes())?;
+                    out.write_u8(b'\n')?;
+                }
+            }
+            OffsetTable::OffsetKey { table } => {
+                for (offset, name) in table {
+                    out.write_all(name.as_bytes())?;
+                    out.write_u8(b' ')?;
+                    out.write_all(format!("{offset:x}").as_bytes())?;
+                    out.write_u8(b'\n')?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn read_name_key(read: &str) -> Result<Self> {
+        let mut table = HashMap::with_capacity(0);
+        for line in read.lines() {
+            let mut split = line.split(' ');
+            let Some(name) = split.next() else {
+                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
+            };
+            let Some(offset) = split.next() else {
+                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
+            };
+            let None = split.next() else {
+                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
+            };
+            let Ok(offset) = usize::from_str_radix(offset, 16) else {
+                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
+            };
+            table.insert(name.to_string(), offset);
+        }
+        Ok(Self::NameKey { table })
+    }
+
+    pub fn read_offset_key(read: &str) -> Result<Self> {
+        let mut table = HashMap::with_capacity(0);
+        for line in read.lines() {
+            let mut split = line.split(' ');
+            let Some(name) = split.next() else {
+                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
+            };
+            let Some(offset) = split.next() else {
+                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
+            };
+            let None = split.next() else {
+                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
+            };
+            let Ok(offset) = usize::from_str_radix(offset, 16) else {
+                return Err(Error::new(ErrorKind::Other, "Invalid file format"));
+            };
+            table.insert(offset, name.to_string());
+        }
+        Ok(Self::OffsetKey { table })
+    }
 }
 
 pub enum LocalPostProc {
