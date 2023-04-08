@@ -68,7 +68,7 @@ pub fn build(matches: &ArgMatches) -> Result<()> {
             "No main module was found",
         ));
     }
-    let mut task = CompileTask::default();
+    let mut task = CompileTask::with_offsets(!matches.get_flag("no-offsets"));
     let mut errors = Vec::with_capacity(0);
     for source_file in source_files {
         let source = read_to_string(&source_file.path)?;

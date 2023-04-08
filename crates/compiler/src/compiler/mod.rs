@@ -50,6 +50,7 @@ pub struct CompileTask {
     pub modules: Vec<Module>,
     pub status: Status,
     pub main: Option<Coord>,
+    pub collect_offsets: bool,
     pub binary: Binary,
 }
 
@@ -60,12 +61,20 @@ impl Default for CompileTask {
             modules: Vec::with_capacity(0),
             status: Status::Open,
             main: None,
+            collect_offsets: false,
             binary: Binary::default(),
         }
     }
 }
 
 impl CompileTask {
+    pub fn with_offsets(collect_offsets: bool) -> Self {
+        Self {
+            collect_offsets,
+            ..Default::default()
+        }
+    }
+
     pub fn include(
         &mut self,
         BareModule {

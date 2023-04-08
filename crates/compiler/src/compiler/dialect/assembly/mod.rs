@@ -19,7 +19,7 @@ use crate::{
         CompileTask, Dialect, Func, FuncData, Static, StaticData, Type, UncollectedModule,
     },
     parser::{BracketType, Node},
-    util::source::Span,
+    util::{get_key_by_value, source::Span},
 };
 
 use self::static_funcs::STATIC_FUNCS;
@@ -185,6 +185,10 @@ impl Dialect for AssemblyLanguage {
         module_index: usize,
     ) -> Result<BinaryModule> {
         let mut binary_mod = BinaryModule::default();
+        if task.collect_offsets {
+            let name = get_key_by_value(&task.module_indices, &module_index);
+            binary_mod.name = name.cloned();
+        }
         let module = &mut task.modules[module_index];
         let statics_len = self.statics.len();
         let funcs_len = self.labels.len();
@@ -315,6 +319,10 @@ fn compile_label(
     binary_mod: &mut BinaryModule,
 ) -> Result<BinaryFunc> {
     let mut binary_func = LowerLayer::default();
+    if task.collect_offsets {
+        let name = get_key_by_value(&dialect.label_indices, &func_index);
+        binary_func.name = name.cloned();
+    }
     let module = &mut task.modules[module_index];
     let Func {
         public: _,

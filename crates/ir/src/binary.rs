@@ -57,7 +57,10 @@ impl Binary {
                 let static_ptr = static_.assemble(&mut ptr, out)?;
                 statics.insert(*static_index, static_ptr);
                 if offset_out.is_some() {
-                    offset_table.add("static".to_string(), static_ptr);
+                    offset_table.add(
+                        format!("{}::static", module.name.as_deref().unwrap_or("{unknown}")),
+                        static_ptr,
+                    );
                 }
             }
             for (func_index, func) in &module.funcs {
@@ -72,9 +75,12 @@ impl Binary {
                 funcs.insert(*func_index, func_ptr);
                 if offset_out.is_some() {
                     if let Some(name) = &func.name {
-                        offset_table.add(name.clone(), func_ptr);
+                        offset_table.add(
+                            format!("{}::{name}", module.name.as_deref().unwrap_or("{unknown}")),
+                            func_ptr,
+                        );
                     } else {
-                        offset_table.add("func".to_string(), func_ptr);
+                        offset_table.add("{unknown}".to_string(), func_ptr);
                     }
                 }
                 for op in &func.ops {

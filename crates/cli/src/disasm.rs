@@ -764,7 +764,7 @@ impl InstructionBus for Disassembler {
 
 pub fn disasm(matches: &ArgMatches) -> Result<()> {
     let file: &PathBuf = matches.get_one("FILE").unwrap();
-    let mut offsets = if let Some(file) = matches.get_one::<PathBuf>("OFFSETS") {
+    let offsets = if let Some(file) = matches.get_one::<PathBuf>("OFFSETS") {
         let offset_source = fs::read_to_string(file)?;
         let OffsetTable::OffsetKey { table } = OffsetTable::read_offset_key(&offset_source)? else {
             unreachable!()
@@ -778,12 +778,12 @@ pub fn disasm(matches: &ArgMatches) -> Result<()> {
         return Err(Error::raw(ErrorKind::Io, file.unwrap_err()));
     };
     file.seek(SeekFrom::Start(8))?;
-    offsets.insert(
-        file.read_u64::<LittleEndian>()? as usize,
-        "main".to_string(),
-    );
+    let entrypoint = file.read_u64::<LittleEndian>()? as usize;
     let mut disasm = Disassembler { index: 0 };
     while let Ok(insn) = file.read_u32::<LittleEndian>() {
+        if disasm.index == entrypoint as isize {
+            println!("entrypoint:");
+        }
         if let Some(name) = offsets.get(&(disasm.index as usize)) {
             println!("<{name}>:");
         }
