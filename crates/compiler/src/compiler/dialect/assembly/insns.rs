@@ -353,12 +353,6 @@ pub const INSN_MACROS: Map<&'static str, &[(&[Component], InsnMacro)]> = phf_map
 };
 
 #[derive(Debug)]
-pub struct Op {
-    pub b: u32,
-    pub c: &'static [Component],
-}
-
-#[derive(Debug)]
 pub enum Component {
     Reg,
     U(usize),
