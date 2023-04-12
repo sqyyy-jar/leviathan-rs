@@ -136,6 +136,7 @@ impl Dialect for CodeLanguage {
             }
             self.imports.push(*import);
         }
+        self.unresolved_imports.shrink_to_fit();
         for i in 0..self.statics.len() {
             let name = if task.collect_offsets {
                 get_key_by_value(&self.static_indices, &i).cloned()
@@ -231,7 +232,7 @@ pub fn expect_byte(module: &mut Module, node: Node) -> Result<u8> {
                     range: 0..256,
                 });
             }
-            if (0..255).contains(&value) || (-128..127).contains(&value) {
+            if (-128..255).contains(&value) {
                 return Ok(value as u8);
             }
             Err(Error::InvalidByte {

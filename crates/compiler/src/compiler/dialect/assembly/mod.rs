@@ -949,6 +949,7 @@ impl Dialect for AssemblyLanguage {
             }
             self.imports.push(*import);
         }
+        self.unresolved_imports.shrink_to_fit();
         for static_index in 0..statics_len {
             let static_ = self.compile_static(task, module_index, static_index)?;
             binary_mod.statics.insert(static_index, static_);
