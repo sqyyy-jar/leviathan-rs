@@ -242,22 +242,15 @@ pub struct Func {
     pub params: Vec<(Option<String>, Type)>,
     pub return_: Type,
     pub data: FuncData,
-    pub used: bool,
-}
-
-#[derive(Debug)]
-pub struct Static {
-    pub data: StaticData,
-    pub used: bool,
 }
 
 #[derive(Debug, Default)]
-pub struct FuncData {
+pub struct Static {
     pub node: Node,
 }
 
 #[derive(Debug, Default)]
-pub struct StaticData {
+pub struct FuncData {
     pub node: Node,
 }
 

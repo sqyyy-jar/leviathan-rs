@@ -1,7 +1,7 @@
 use crate::{
     compiler::{
         error::{Error, Result},
-        CompileTask, Func, FuncData, Module, Static, StaticData, Type,
+        CompileTask, Func, FuncData, Module, Static, Type,
     },
     parser::{BracketType, Node},
     util::source::Span,
@@ -94,10 +94,7 @@ pub fn collect_static(
             });
         }
         let value = nodes.next().unwrap();
-        dialect.statics.push(Static {
-            data: StaticData { node: value },
-            used: false,
-        });
+        dialect.statics.push(Static { node: value });
         dialect
             .static_indices
             .insert(name.to_string(), dialect.statics.len() - 1);
@@ -214,7 +211,6 @@ pub fn collect_fn(
         params,
         return_,
         data: FuncData { node: expr_node },
-        used: false,
     });
     dialect.func_indices.insert(name, dialect.funcs.len() - 1);
     Ok(())

@@ -18,7 +18,7 @@ This layer is required to check bounds by itself. Later layers do not have the a
 Intermediate layer to restructure an `Upper` layer so that `if`-statements, `while`-loops and `for`-loops are getting flattened to conditional branches.
 
 * Variables
-	* Lifetimes
+  * Lifetimes
 * No specific types for operations
 * Flat structure
 * Operation-embedded, flat control flow structures (`if`, `while`, `for`)

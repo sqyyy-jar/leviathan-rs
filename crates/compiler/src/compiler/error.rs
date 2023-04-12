@@ -139,6 +139,16 @@ pub enum Error {
         span: Span,
         range: Range<i64>,
     },
+    NegativeNumber {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    InvalidByte {
+        file: String,
+        src: String,
+        span: Span,
+    },
     IoError(std::io::Error),
 }
 
@@ -316,6 +326,16 @@ impl Error {
                     span,
                     &format!("This number must be in range {range:?}"),
                 );
+                source = Source::from(src);
+                file
+            }
+            Error::NegativeNumber { file, src, span } => {
+                report = span_error_report(file, span, "This number must not be negative");
+                source = Source::from(src);
+                file
+            }
+            Error::InvalidByte { file, src, span } => {
+                report = span_error_report(file, span, "This number does not fit into a byte");
                 source = Source::from(src);
                 file
             }

@@ -2,13 +2,13 @@ pub mod keywords;
 
 use std::{collections::HashMap, mem};
 
-use leviathan_ir::binary::{BinaryModule, BinaryStatic};
+use leviathan_ir::binary::{BinaryFunc, BinaryModule, BinaryStatic};
 use phf::{phf_map, Map};
 
 use crate::{
     compiler::{
         error::{Error, Result},
-        CompileTask, Dialect, Func, FuncData, Module, Static, StaticData, UncollectedModule,
+        CompileTask, Dialect, Func, FuncData, Module, Static, UncollectedModule,
     },
     parser::{BracketType, Node},
     util::{get_key_by_value, source::Span},
@@ -111,8 +111,6 @@ impl Dialect for CodeLanguage {
     ) -> Result<BinaryModule> {
         let mut binary_mod = BinaryModule::default();
         let module = &mut task.modules[module_index];
-        let imports = mem::replace(&mut self.imports, Vec::with_capacity(0));
-        let mut new_imports = Vec::with_capacity(imports.len());
         for import_span in self.unresolved_imports.drain(..) {
             let import = &module.src[import_span.clone()];
             let Some(import) = task.module_indices.get(import) else {
@@ -122,7 +120,21 @@ impl Dialect for CodeLanguage {
                     span: import_span,
                 });
             };
-            new_imports.push(*import);
+            if *import == module_index {
+                return Err(Error::SelfImport {
+                    file: module.take_file(),
+                    src: module.take_src(),
+                    span: import_span,
+                });
+            }
+            if self.imports.contains(import) {
+                return Err(Error::DuplicateImport {
+                    file: module.take_file(),
+                    src: module.take_src(),
+                    span: import_span,
+                });
+            }
+            self.imports.push(*import);
         }
         for i in 0..self.statics.len() {
             let name = if task.collect_offsets {
@@ -130,15 +142,15 @@ impl Dialect for CodeLanguage {
             } else {
                 None
             };
-            let static_ = &mut self.statics[i];
-            let StaticData { node } = mem::take(&mut static_.data);
-            let value = compile_static(module, node, name)?;
+            let static_ = mem::take(&mut self.statics[i]);
+            let value = compile_static(module, static_.node, name)?;
             binary_mod.statics.insert(i, value);
         }
         for i in 0..self.funcs.len() {
             let Func { data, .. } = &mut self.funcs[i];
             let FuncData { node } = mem::take(data);
-            compile_func_body(task, module_index, node)?;
+            let value = compile_func(task, module_index, node)?;
+            binary_mod.funcs.insert(i, value);
         }
         Ok(binary_mod)
     }
@@ -166,14 +178,103 @@ fn compile_static(module: &mut Module, node: Node, name: Option<String>) -> Resu
         Node::Float { value, .. } => Ok(BinaryStatic::Float { name, value }),
         Node::String { value, .. } => Ok(BinaryStatic::String { name, value }),
         Node::Node {
-            span: _,
-            type_: _,
-            sub_nodes: _,
-        } => todo!(),
-        _ => unreachable!(),
+            span,
+            type_: BracketType::Square,
+            mut sub_nodes,
+        } => match sub_nodes.len() {
+            1 => {
+                let length_node = sub_nodes.pop().unwrap();
+                let length = expect_unsigned_num(module, length_node)?;
+                Ok(BinaryStatic::FilledBuffer {
+                    name,
+                    size: length as usize,
+                    fill: 0,
+                })
+            }
+            2 => {
+                let fill_node = sub_nodes.pop().unwrap();
+                let length_node = sub_nodes.pop().unwrap();
+                let length = expect_unsigned_num(module, length_node)?;
+                let fill = expect_byte(module, fill_node)?;
+                Ok(BinaryStatic::FilledBuffer {
+                    name,
+                    size: length as usize,
+                    fill,
+                })
+            }
+            _ => Err(Error::UnexpectedToken {
+                file: module.take_file(),
+                src: module.take_src(),
+                span,
+            }),
+        },
+        _ => Err(Error::UnexpectedToken {
+            file: module.take_file(),
+            src: module.take_src(),
+            span: node.span(),
+        }),
     }
 }
 
-fn compile_func_body(_task: &mut CompileTask, _module_index: usize, _expr: Node) -> Result<()> {
+fn compile_func(_task: &mut CompileTask, _module_index: usize, _expr: Node) -> Result<BinaryFunc> {
     todo!()
+}
+
+pub fn expect_byte(module: &mut Module, node: Node) -> Result<u8> {
+    match node {
+        Node::Int { span, value } => {
+            if value > 255 {
+                return Err(Error::NotInSizeRange {
+                    file: module.take_file(),
+                    src: module.take_src(),
+                    span,
+                    range: 0..256,
+                });
+            }
+            if (0..255).contains(&value) || (-128..127).contains(&value) {
+                return Ok(value as u8);
+            }
+            Err(Error::InvalidByte {
+                file: module.take_file(),
+                src: module.take_src(),
+                span,
+            })
+        }
+        Node::UInt { span, value } => {
+            if value > 255 {
+                return Err(Error::InvalidByte {
+                    file: module.take_file(),
+                    src: module.take_src(),
+                    span,
+                });
+            }
+            Ok(value as u8)
+        }
+        _ => Err(Error::UnexpectedToken {
+            file: module.take_file(),
+            src: module.take_src(),
+            span: node.span(),
+        }),
+    }
+}
+
+pub fn expect_unsigned_num(module: &mut Module, node: Node) -> Result<u64> {
+    match node {
+        Node::Int { span, value } => {
+            if value < 0 {
+                return Err(Error::NegativeNumber {
+                    file: module.take_file(),
+                    src: module.take_src(),
+                    span,
+                });
+            }
+            Ok(value as u64)
+        }
+        Node::UInt { value, .. } => Ok(value),
+        _ => Err(Error::UnexpectedToken {
+            file: module.take_file(),
+            src: module.take_src(),
+            span: node.span(),
+        }),
+    }
 }
