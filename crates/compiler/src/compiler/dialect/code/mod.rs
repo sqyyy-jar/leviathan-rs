@@ -224,15 +224,7 @@ fn compile_func(_task: &mut CompileTask, _module_index: usize, _expr: Node) -> R
 pub fn expect_byte(module: &mut Module, node: Node) -> Result<u8> {
     match node {
         Node::Int { span, value } => {
-            if value > 255 {
-                return Err(Error::NotInSizeRange {
-                    file: module.take_file(),
-                    src: module.take_src(),
-                    span,
-                    range: 0..256,
-                });
-            }
-            if (-128..255).contains(&value) {
+            if (-128..=255).contains(&value) {
                 return Ok(value as u8);
             }
             Err(Error::InvalidByte {
@@ -242,14 +234,14 @@ pub fn expect_byte(module: &mut Module, node: Node) -> Result<u8> {
             })
         }
         Node::UInt { span, value } => {
-            if value > 255 {
-                return Err(Error::InvalidByte {
-                    file: module.take_file(),
-                    src: module.take_src(),
-                    span,
-                });
+            if (0..=255).contains(&value) {
+                return Ok(value as u8);
             }
-            Ok(value as u8)
+            Err(Error::InvalidByte {
+                file: module.take_file(),
+                src: module.take_src(),
+                span,
+            })
         }
         _ => Err(Error::UnexpectedToken {
             file: module.take_file(),

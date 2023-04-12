@@ -21,3 +21,5 @@ Every module contains the following:
 # To do
 
 * Write about tokenizer and parser
+* Implement `code` dialect
+  * Add arrays to `BinaryStatic`
