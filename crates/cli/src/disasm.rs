@@ -601,6 +601,12 @@ pub fn disasm(matches: &ArgMatches) -> Result<()> {
                 'f' => {
                     println!("{}", Paint::new(format!("fun {name}:")).fg(Color::Yellow));
                 }
+                'l' => {
+                    println!(
+                        "{}",
+                        Paint::new(format!("locals {name}:")).fg(Color::Magenta)
+                    );
+                }
                 _ => {
                     println!("{}", Paint::new(format!("<{name}>:")).fg(Color::Red));
                 }
@@ -629,6 +635,17 @@ pub fn disasm(matches: &ArgMatches) -> Result<()> {
                     insn & 0xFF
                 );
                 disasm.process(insn);
+            }
+            'l' => {
+                println!(
+                    "{} {:>08x}:\t{:02x} {:02x} {:02x} {:02x}",
+                    Paint::new("|").fg(Color::Magenta),
+                    disasm.index,
+                    (insn >> 24) & 0xFF,
+                    (insn >> 16) & 0xFF,
+                    (insn >> 8) & 0xFF,
+                    insn & 0xFF
+                );
             }
             _ => {
                 print!(

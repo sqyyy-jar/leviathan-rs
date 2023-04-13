@@ -46,6 +46,11 @@ pub enum Error {
         src: String,
         span: Span,
     },
+    UnexpectedTokens {
+        file: String,
+        src: String,
+        span: Span,
+    },
     InvalidKeyword {
         file: String,
         src: String,
@@ -144,7 +149,22 @@ pub enum Error {
         src: String,
         span: Span,
     },
+    OversizedNumber {
+        file: String,
+        src: String,
+        span: Span,
+    },
     InvalidByte {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    EmptyBuffer {
+        file: String,
+        src: String,
+        span: Span,
+    },
+    EmptyArray {
         file: String,
         src: String,
         span: Span,
@@ -199,6 +219,11 @@ impl Error {
             }
             Error::UnexpectedToken { file, src, span } => {
                 report = span_error_report(file, span, "This token is not valid here");
+                source = Source::from(src);
+                file
+            }
+            Error::UnexpectedTokens { file, src, span } => {
+                report = span_error_report(file, span, "These tokens are not valid here");
                 source = Source::from(src);
                 file
             }
@@ -334,8 +359,23 @@ impl Error {
                 source = Source::from(src);
                 file
             }
+            Error::OversizedNumber { file, src, span } => {
+                report = span_error_report(file, span, "This number is too big");
+                source = Source::from(src);
+                file
+            }
             Error::InvalidByte { file, src, span } => {
                 report = span_error_report(file, span, "This number does not fit into a byte");
+                source = Source::from(src);
+                file
+            }
+            Error::EmptyBuffer { file, src, span } => {
+                report = span_error_report(file, span, "A buffer initialization must not be empty");
+                source = Source::from(src);
+                file
+            }
+            Error::EmptyArray { file, src, span } => {
+                report = span_error_report(file, span, "This array must not be empty");
                 source = Source::from(src);
                 file
             }

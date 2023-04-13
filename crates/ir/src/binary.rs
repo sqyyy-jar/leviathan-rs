@@ -54,20 +54,29 @@ impl Binary {
             let mut statics = HashMap::with_capacity(module.statics.len());
             let mut funcs = HashMap::with_capacity(module.funcs.len());
             for (static_index, static_) in &module.statics {
-                let static_ptr = static_.assemble(&mut ptr, out)?;
-                statics.insert(*static_index, static_ptr);
                 if offset_out.is_some() && module.name.is_some() {
                     if let Some(name) = static_.name() {
                         offset_table.add(
                             's',
                             format!("{}::{name}", module.name.as_deref().unwrap()),
-                            static_ptr,
+                            ptr,
                         );
                     }
                 }
+                let static_ptr = static_.assemble(&mut ptr, out)?;
+                statics.insert(*static_index, static_ptr);
             }
             for (func_index, func) in &module.funcs {
                 let mut locals = HashMap::with_capacity(func.locals.len());
+                if offset_out.is_some() && module.name.is_some() && !func.locals.is_empty() {
+                    if let Some(name) = &func.name {
+                        offset_table.add(
+                            'l',
+                            format!("{}::{name}", module.name.as_deref().unwrap()),
+                            ptr,
+                        );
+                    }
+                }
                 for (local_index, local) in func.locals.iter().enumerate() {
                     let local_ptr = local.assemble(&mut ptr, out)?;
                     locals.insert(local_index, local_ptr);
@@ -606,6 +615,14 @@ pub enum BinaryStatic {
         size: usize,
         fill: u8,
     },
+    IntArray {
+        name: Option<String>,
+        values: Vec<i64>,
+    },
+    UIntArray {
+        name: Option<String>,
+        values: Vec<u64>,
+    },
 }
 
 impl BinaryStatic {
@@ -615,7 +632,9 @@ impl BinaryStatic {
             | BinaryStatic::UInt { name, .. }
             | BinaryStatic::Float { name, .. }
             | BinaryStatic::String { name, .. }
-            | BinaryStatic::FilledBuffer { name, .. } => name.as_ref(),
+            | BinaryStatic::FilledBuffer { name, .. }
+            | BinaryStatic::IntArray { name, .. }
+            | BinaryStatic::UIntArray { name, .. } => name.as_ref(),
         }
     }
 
@@ -640,12 +659,17 @@ impl BinaryStatic {
                 addr = *ptr;
                 out.write_all(value.as_bytes())?;
                 *ptr += value.len();
-                for _ in 0..alignment(value.len(), 4) {
+                out.write_u8(0)?;
+                *ptr += 1;
+                for _ in 0..alignment(value.len() + 1, 4) {
                     out.write_u8(0)?;
                     *ptr += 1;
                 }
             }
             BinaryStatic::FilledBuffer { size, fill, .. } => {
+                out.write_u64::<LittleEndian>(*size as u64)?;
+                *ptr += 8;
+                addr = *ptr;
                 *ptr += *size;
                 for _ in 0..*size {
                     out.write_u8(*fill)?;
@@ -653,6 +677,24 @@ impl BinaryStatic {
                 for _ in 0..alignment(*size, 4) {
                     out.write_u8(0)?;
                     *ptr += 1;
+                }
+            }
+            BinaryStatic::IntArray { values, .. } => {
+                out.write_u64::<LittleEndian>(values.len() as u64)?;
+                *ptr += 8;
+                addr = *ptr;
+                *ptr += values.len() * 8;
+                for value in values {
+                    out.write_i64::<LittleEndian>(*value)?;
+                }
+            }
+            BinaryStatic::UIntArray { values, .. } => {
+                out.write_u64::<LittleEndian>(values.len() as u64)?;
+                *ptr += 8;
+                addr = *ptr;
+                *ptr += values.len() * 8;
+                for value in values {
+                    out.write_u64::<LittleEndian>(*value)?;
                 }
             }
         }
@@ -713,6 +755,7 @@ impl OffsetTable {
             let c = match c {
                 "s" => 's',
                 "f" => 'f',
+                "l" => 'l',
                 _ => {
                     return Err(Error::new(ErrorKind::Other, "Invalid file format"));
                 }

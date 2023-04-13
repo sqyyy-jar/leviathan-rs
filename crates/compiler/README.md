@@ -20,6 +20,7 @@ Every module contains the following:
 
 # To do
 
-* Write about tokenizer and parser
-* Implement `code` dialect
-  * Add arrays to `BinaryStatic`
+* [ ] Write about tokenizer and parser
+* [ ] Implement `code` dialect
+  * [x] Add arrays to `BinaryStatic`
+  * [x] Add arrays support to `code` dialect

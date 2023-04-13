@@ -110,6 +110,10 @@ impl Dialect for CodeLanguage {
         module_index: usize,
     ) -> Result<BinaryModule> {
         let mut binary_mod = BinaryModule::default();
+        if task.collect_offsets {
+            let name = get_key_by_value(&task.module_indices, &module_index);
+            binary_mod.name = name.cloned();
+        }
         let module = &mut task.modules[module_index];
         for import_span in self.unresolved_imports.drain(..) {
             let import = &module.src[import_span.clone()];
@@ -180,9 +184,14 @@ fn compile_static(module: &mut Module, node: Node, name: Option<String>) -> Resu
         Node::String { value, .. } => Ok(BinaryStatic::String { name, value }),
         Node::Node {
             span,
-            type_: BracketType::Square,
+            type_: BracketType::Curly,
             mut sub_nodes,
         } => match sub_nodes.len() {
+            0 => Err(Error::EmptyBuffer {
+                file: module.take_file(),
+                src: module.take_src(),
+                span,
+            }),
             1 => {
                 let length_node = sub_nodes.pop().unwrap();
                 let length = expect_unsigned_num(module, length_node)?;
@@ -193,22 +202,59 @@ fn compile_static(module: &mut Module, node: Node, name: Option<String>) -> Resu
                 })
             }
             2 => {
-                let fill_node = sub_nodes.pop().unwrap();
-                let length_node = sub_nodes.pop().unwrap();
-                let length = expect_unsigned_num(module, length_node)?;
-                let fill = expect_byte(module, fill_node)?;
+                let length = expect_unsigned_num(module, sub_nodes.pop().unwrap())?;
+                let fill = expect_byte(module, sub_nodes.pop().unwrap())?;
                 Ok(BinaryStatic::FilledBuffer {
                     name,
                     size: length as usize,
                     fill,
                 })
             }
-            _ => Err(Error::UnexpectedToken {
+            3 => Err(Error::UnexpectedToken {
                 file: module.take_file(),
                 src: module.take_src(),
-                span,
+                span: sub_nodes[2].span(),
+            }),
+            _ => Err(Error::UnexpectedTokens {
+                file: module.take_file(),
+                src: module.take_src(),
+                span: sub_nodes[2].span().start..sub_nodes.last().unwrap().span().end,
             }),
         },
+        Node::Node {
+            span,
+            type_: BracketType::Square,
+            mut sub_nodes,
+        } => {
+            if sub_nodes.is_empty() {
+                return Err(Error::EmptyArray {
+                    file: module.take_file(),
+                    src: module.take_src(),
+                    span,
+                });
+            }
+            match &sub_nodes[0] {
+                Node::Int { .. } => {
+                    let mut values = Vec::with_capacity(sub_nodes.len());
+                    for sub_node in sub_nodes.drain(..) {
+                        values.push(expect_signed_num(module, sub_node)?);
+                    }
+                    Ok(BinaryStatic::IntArray { name, values })
+                }
+                Node::UInt { .. } => {
+                    let mut values = Vec::with_capacity(sub_nodes.len());
+                    for sub_node in sub_nodes.drain(..) {
+                        values.push(expect_unsigned_num(module, sub_node)?);
+                    }
+                    Ok(BinaryStatic::UIntArray { name, values })
+                }
+                _ => Err(Error::UnexpectedToken {
+                    file: module.take_file(),
+                    src: module.take_src(),
+                    span: sub_nodes[0].span(),
+                }),
+            }
+        }
         _ => Err(Error::UnexpectedToken {
             file: module.take_file(),
             src: module.take_src(),
@@ -264,6 +310,27 @@ pub fn expect_unsigned_num(module: &mut Module, node: Node) -> Result<u64> {
             Ok(value as u64)
         }
         Node::UInt { value, .. } => Ok(value),
+        _ => Err(Error::UnexpectedToken {
+            file: module.take_file(),
+            src: module.take_src(),
+            span: node.span(),
+        }),
+    }
+}
+
+pub fn expect_signed_num(module: &mut Module, node: Node) -> Result<i64> {
+    match node {
+        Node::Int { value, .. } => Ok(value),
+        Node::UInt { span, value } => {
+            if value > i64::MAX as u64 {
+                return Err(Error::OversizedNumber {
+                    file: module.take_file(),
+                    src: module.take_src(),
+                    span,
+                });
+            }
+            Ok(value as i64)
+        }
         _ => Err(Error::UnexpectedToken {
             file: module.take_file(),
             src: module.take_src(),
