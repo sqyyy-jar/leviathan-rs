@@ -22,7 +22,7 @@ pub mod dialect;
 pub mod error;
 
 pub const DIALECTS: Map<&str, fn() -> Box<dyn Dialect>> = phf_map! {
-    "assembly" => || Box::<AssemblyLanguage>::default(),
+    "asm" => || Box::<AssemblyLanguage>::default(),
     "code" => || Box::<CodeLanguage>::default(),
 };
 
