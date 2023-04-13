@@ -151,7 +151,8 @@ impl AssemblyLanguage {
                     BinaryStatic::String { .. }
                     | BinaryStatic::FilledBuffer { .. }
                     | BinaryStatic::IntArray { .. }
-                    | BinaryStatic::UIntArray { .. } => {
+                    | BinaryStatic::UIntArray { .. }
+                    | BinaryStatic::FloatArray { .. } => {
                         binary_func.ops.push(LowOp::LoadStatic64 {
                             dst: Reg::new(0),
                             coord: Coord {

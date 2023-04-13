@@ -623,6 +623,10 @@ pub enum BinaryStatic {
         name: Option<String>,
         values: Vec<u64>,
     },
+    FloatArray {
+        name: Option<String>,
+        values: Vec<f64>,
+    },
 }
 
 impl BinaryStatic {
@@ -634,7 +638,8 @@ impl BinaryStatic {
             | BinaryStatic::String { name, .. }
             | BinaryStatic::FilledBuffer { name, .. }
             | BinaryStatic::IntArray { name, .. }
-            | BinaryStatic::UIntArray { name, .. } => name.as_ref(),
+            | BinaryStatic::UIntArray { name, .. }
+            | BinaryStatic::FloatArray { name, .. } => name.as_ref(),
         }
     }
 
@@ -697,6 +702,15 @@ impl BinaryStatic {
                     out.write_u64::<LittleEndian>(*value)?;
                 }
             }
+            BinaryStatic::FloatArray { values, .. } => {
+                out.write_u64::<LittleEndian>(values.len() as u64)?;
+                *ptr += 8;
+                addr = *ptr;
+                *ptr += values.len() * 8;
+                for value in values {
+                    out.write_f64::<LittleEndian>(*value)?;
+                }
+            },
         }
         Ok(addr)
     }

@@ -248,6 +248,13 @@ fn compile_static(module: &mut Module, node: Node, name: Option<String>) -> Resu
                     }
                     Ok(BinaryStatic::UIntArray { name, values })
                 }
+                Node::Float { .. } => {
+                    let mut values = Vec::with_capacity(sub_nodes.len());
+                    for sub_node in sub_nodes.drain(..) {
+                        values.push(expect_float(module, sub_node)?);
+                    }
+                    Ok(BinaryStatic::FloatArray { name, values })
+                }
                 _ => Err(Error::UnexpectedToken {
                     file: module.take_file(),
                     src: module.take_src(),
@@ -337,4 +344,15 @@ pub fn expect_signed_num(module: &mut Module, node: Node) -> Result<i64> {
             span: node.span(),
         }),
     }
+}
+
+pub fn expect_float(module: &mut Module, node: Node) -> Result<f64> {
+    if let Node::Float { value, .. } = node {
+        return Ok(value);
+    }
+    Err(Error::UnexpectedToken {
+        file: module.take_file(),
+        src: module.take_src(),
+        span: node.span(),
+    })
 }
