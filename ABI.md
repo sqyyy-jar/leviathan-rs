@@ -11,52 +11,96 @@
 
 * Replace native stack with context stack
 
-## Call switches
+## Mapped registers
 
-### Mapped registers
-
+> **Warning**  
 > TODO
 
 The following registers are mapped:
 
 * `rsp` <-> `r31` (stack pointer)
 
-### Virtual -> Virtual
+## Call switches
+
+### Virtual => Virtual
 
 * Push return address onto callstack
-* Jump to virtual address
+* Jump to virtual callee address
 
-### Virtual -> Native
+### Virtual => Native
 
+> **Warning**  
 > TODO
 
-* Pop return address
-* Push virtual runner return address onto stack
+* Push return address onto callstack
+* Push runner return function address onto stack
 * Set first argument to context pointer
 * Copy mapped virtual registers to native registers
-* Jump to native address
+* Jump to native callee address
 
-### Native -> Virtual
+### Native => Virtual
 
+> **Warning**  
 > TODO
 
-* Load callee address
+* Load native callee address
 * Push return address onto stack (`call`)
-* Jump to callee address (`call`)
+* Jump to native callee address (`call`)
 
 Virtual call stub:
 
 * Pop return address and push it onto callstack
 * Copy mapped native registers to virtual registers
 * Jump to virtual address
+  * Set virtual program counter
+  * Jump to runner
 
-### Native -> Native
+### Native => Native
 
+> **Warning**  
 > TODO
 
-* Load native address
+* Load native callee address
 * Push return address onto stack (`call`)
-* Jump to native address (`call`)
+* Jump to native callee address (`call`)
+
+## Return switches
+
+### Virtual => Virtual
+
+* Pop return address from callstack
+* Jump to virtual return address
+
+### Virtual => Native
+
+> **Warning**  
+> TODO
+
+* Pop return address from callstack
+* Set first argument to context pointer
+* Copy mapped virtual registers to native registers
+* Jump to native return address
+
+### Native => Virtual
+
+> **Warning**  
+> TODO
+
+* Pop return address from stack (`ret`)
+* Jump to native return address (`ret`)
+
+Runner return function:
+
+* Pop return address from callstack
+* Jump to virtual return address
+
+### Native => Native
+
+> **Warning**  
+> TODO
+
+* Pop return address from stack (`ret`)
+* Jump to native return address (`ret`)
 
 # To do
 
