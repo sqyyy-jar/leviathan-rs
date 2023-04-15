@@ -270,8 +270,15 @@ fn compile_static(module: &mut Module, node: Node, name: Option<String>) -> Resu
     }
 }
 
-fn compile_func(_task: &mut CompileTask, _module_index: usize, _expr: Node) -> Result<BinaryFunc> {
-    todo!()
+fn compile_func(_task: &mut CompileTask, _module_index: usize, node: Node) -> Result<BinaryFunc> {
+    match node {
+        Node::Node { span, type_: BracketType::Curly, sub_nodes } => {
+            todo!("Parse statement")
+        }
+        _ => {
+            todo!("Parse expression")
+        }
+    }
 }
 
 pub fn expect_byte(module: &mut Module, node: Node) -> Result<u8> {
